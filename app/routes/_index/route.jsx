@@ -1,4 +1,4 @@
-import { redirect, Form, useLoaderData } from "react-router";
+import { redirect, Form, useLoaderData, Link } from "react-router";
 import { login } from "../../shopify.server";
 import styles from "./styles.module.css";
 
@@ -18,36 +18,51 @@ export default function App() {
   return (
     <div className={styles.index}>
       <div className={styles.content}>
-        <h1 className={styles.heading}>A short heading about [your app]</h1>
+        <h1 className={styles.heading}>Glitch SEO</h1>
         <p className={styles.text}>
-          A tagline about [your app] that describes your value proposition.
+          SEO audit and schema for your store: products, FAQ, breadcrumbs,
+          llms.txt. Built for both traditional search and AI assistants.
         </p>
         {showForm && (
           <Form className={styles.form} method="post" action="/auth/login">
             <label className={styles.label}>
-              <span>Shop domain</span>
-              <input className={styles.input} type="text" name="shop" />
-              <span>e.g: my-shop-domain.myshopify.com</span>
+              <span>Your Shopify store domain</span>
+              <input
+                className={styles.input}
+                type="text"
+                name="shop"
+                placeholder="your-store.myshopify.com"
+              />
             </label>
             <button className={styles.button} type="submit">
-              Log in
+              Install Glitch SEO
             </button>
           </Form>
         )}
         <ul className={styles.list}>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Audit.</strong> One-click pass-fail checklist for structured
+            data, breadcrumbs, canonical tags, and og:image — run against your
+            live storefront.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>Schema coverage.</strong> Product JSON-LD with category,
+            material, and additionalProperty. FAQPage and BreadcrumbList wired
+            into the theme.
           </li>
           <li>
-            <strong>Product feature</strong>. Some detail about your feature and
-            its benefit to your customer.
+            <strong>AI search ready.</strong> Generates llms.txt and rewrites
+            product descriptions in a format search engines and AI answer tools
+            can cite.
           </li>
         </ul>
+        <p className={styles.text} style={{ marginTop: "2rem", fontSize: "0.9em" }}>
+          <Link to="/privacy">Privacy policy</Link>
+          {" · "}
+          <Link to="/support">Support</Link>
+          {" · "}
+          <Link to="/docs">Docs</Link>
+        </p>
       </div>
     </div>
   );

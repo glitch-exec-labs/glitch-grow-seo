@@ -13,6 +13,16 @@ Body text (if present) shown as indented sub-bullets.
 
 ## 2026-04-14
 
+- **23:58 UTC** — feat: add /privacy, /support, /docs public pages + fix landing page copy (`2bad3bc`) — 4 files
+    - Replace scaffold '/' copy ('A short heading about [your app]') with
+      real Glitch SEO positioning + install form + resource links
+    - /privacy: full Shopify-review-ready privacy policy (data accessed,
+      stored, NOT stored; retention; subprocessors; GDPR-style rights)
+    - /support: email + common issues + feedback path
+    - /docs: getting started, audit explainer, scope table, FAQ
+    - All pages self-contained, no external dependencies, inline styled
+      for review-friendliness
+- **23:22 UTC** — docs: refresh CHANGELOG.md (`6274ce1`) — 1 file
 - **23:22 UTC** — docs: add auto-generated CHANGELOG.md (`e063b7c`) — 1 file
 - **23:12 UTC** — chore: initial commit — Glitch SEO public app (`d1c3926`) — 45 files
     - Shopify App Store candidate (client_id 44bf7f37..., public distribution)
