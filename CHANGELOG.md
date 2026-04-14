@@ -13,6 +13,7 @@ Body text (if present) shown as indented sub-bullets.
 
 ## 2026-04-14
 
+- **23:22 UTC** — docs: add auto-generated CHANGELOG.md (`e063b7c`) — 1 file
 - **23:12 UTC** — chore: initial commit — Glitch SEO public app (`d1c3926`) — 45 files
     - Shopify App Store candidate (client_id 44bf7f37..., public distribution)
     - Serves grow.glitchexecutor.com on port 3102
