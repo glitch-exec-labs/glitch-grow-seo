@@ -13,7 +13,8 @@ Body text (if present) shown as indented sub-bullets.
 
 ## 2026-04-15
 
-- **00:16 UTC** — auto-sync: 2026-04-15 00:16 UTC (`534616d`) — 1 file
+- **00:57 UTC** — fix: remove plan badge from dashboard (Shopify rejects pricing info in screenshots) (`03269be`) — 1 file
+- **00:16 UTC** — auto-sync: 2026-04-15 00:16 UTC (`0b2a750`) — 2 files
         M	shopify.app.toml
 - **00:10 UTC** — feat: add GDPR compliance webhook handlers (`b89197f`) — 5 files
     - customers/data_request: no customer data held, acknowledge

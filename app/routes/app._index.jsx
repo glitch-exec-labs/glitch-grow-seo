@@ -207,8 +207,6 @@ export default function Index() {
             <s-link href={storefrontUrl} target="_blank">
               {storefrontUrl}
             </s-link>
-            {"  ·  "}
-            <s-text>Plan:</s-text> <s-text weight="bold">{shop.plan?.displayName}</s-text>
           </s-paragraph>
           <s-stack direction="inline" gap="base">
             <s-badge>{counts.products} products</s-badge>
