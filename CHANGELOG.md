@@ -11,9 +11,18 @@ Body text (if present) shown as indented sub-bullets.
 
 ---
 
+## 2026-04-15
+
+- **00:10 UTC** — feat: add GDPR compliance webhook handlers (`1747c48`) — 4 files
+    - customers/data_request: no customer data held, acknowledge
+    - customers/redact: no customer data held, acknowledge
+    - shop/redact: delete any remaining session for the shop (defensive)
+    - Webhook topics removed from shopify.app.toml (Shopify manages GDPR webhooks
+      via Partner Dashboard UI only, not via CLI config)
+
 ## 2026-04-14
 
-- **23:58 UTC** — feat: add /privacy, /support, /docs public pages + fix landing page copy (`2bad3bc`) — 4 files
+- **23:58 UTC** — feat: add /privacy, /support, /docs public pages + fix landing page copy (`9ec664a`) — 5 files
     - Replace scaffold '/' copy ('A short heading about [your app]') with
       real Glitch SEO positioning + install form + resource links
     - /privacy: full Shopify-review-ready privacy policy (data accessed,
