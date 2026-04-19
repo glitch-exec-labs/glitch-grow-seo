@@ -1,53 +1,91 @@
-# Glitch Grow
+<h1 align="center">Glitch SEO</h1>
 
-A Shopify app by [Glitch Executor Labs](https://grow.glitchexecutor.com) for merchants who want to stop guessing at SEO.
+<p align="center">
+  SEO audit and structured-data automation for Shopify stores —<br/>
+  built for both traditional search and AI answer engines.
+</p>
 
-Built on the Shopify App React Router template. Embedded admin UI (Polaris + App Bridge), Prisma + PostgreSQL session storage, GDPR-compliant webhook handlers.
+<p align="center">
+  <a href="https://grow.glitchexecutor.com"><img alt="Live" src="https://img.shields.io/badge/live-grow.glitchexecutor.com-0A84FF"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-green"></a>
+  <img alt="Node" src="https://img.shields.io/badge/node-%E2%89%A520.19-339933?logo=node.js&logoColor=white">
+  <img alt="Shopify" src="https://img.shields.io/badge/Shopify%20API-2026--07-96BF48?logo=shopify&logoColor=white">
+</p>
+
+---
+
+## What it does
+
+- **Audit.** One-click pass/fail checklist across structured data, breadcrumbs, canonical tags, and `og:image` — run against the live storefront.
+- **Schema coverage.** Product JSON-LD with `category`, `material`, and `additionalProperty`. `FAQPage` and `BreadcrumbList` wired into the theme via App Embed blocks.
+- **AI search ready.** Generates `llms.txt` and rewrites product copy into a format that traditional search and AI answer engines can cite.
 
 ## Stack
 
-- React Router 7 (SSR, file-routed)
-- Shopify App React Router (`@shopify/shopify-app-react-router`)
-- Prisma 6 + PostgreSQL
-- Polaris v12 / App Bridge v4
-- Node 20.19+ / pnpm 10
+| Layer        | Tech                                                       |
+|--------------|------------------------------------------------------------|
+| Framework    | [React Router 7](https://reactrouter.com) (SSR, file routes) |
+| Shopify      | [`@shopify/shopify-app-react-router`](https://www.npmjs.com/package/@shopify/shopify-app-react-router), App Bridge v4, Polaris v12 |
+| Data         | Prisma 6 + PostgreSQL ([`@shopify/shopify-app-session-storage-prisma`](https://www.npmjs.com/package/@shopify/shopify-app-session-storage-prisma)) |
+| Extensions   | Theme app extensions (JSON-LD blocks), checkout UI extensions |
+| Runtime      | Node ≥ 20.19, pnpm 10                                      |
 
-## Local development
+## Getting started
+
+### Prerequisites
+
+- [Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started) and a Shopify Partner account
+- Node ≥ 20.19, pnpm ≥ 10
+- PostgreSQL 14+ (local or hosted)
+
+### Install
 
 ```bash
 pnpm install
-cp .env.example .env   # then fill in Shopify + DB credentials
+cp .env.example .env          # fill in Shopify + DATABASE_URL
 pnpm prisma migrate deploy
-pnpm dev               # runs `shopify app dev`
+pnpm dev                      # shopify app dev
 ```
 
-You need the [Shopify CLI](https://shopify.dev/docs/apps/tools/cli/getting-started) and a Shopify Partner account. The `client_id` in `shopify.app.toml` points at the production Glitch Grow app — **replace it with your own** before running `shopify app dev`, or the CLI will refuse to connect.
+> **Note:** `shopify.app.toml` pins the production Glitch SEO `client_id` and URLs. Before running `pnpm dev`, either `shopify app config link` to your own dev app or swap `client_id` and `application_url` in the TOML — otherwise the CLI refuses to connect.
 
-## Scripts
+### Scripts
 
-- `pnpm dev` — local dev via Shopify CLI
-- `pnpm build` — production build
-- `pnpm typecheck` — `tsc --noEmit` + React Router typegen
-- `pnpm lint` — ESLint
-- `pnpm setup` — `prisma generate && prisma migrate deploy`
+| Command            | What it does                                |
+|--------------------|---------------------------------------------|
+| `pnpm dev`         | Local dev via Shopify CLI                   |
+| `pnpm build`       | Production build                            |
+| `pnpm typecheck`   | React Router typegen + `tsc --noEmit`       |
+| `pnpm lint`        | ESLint                                      |
+| `pnpm setup`       | `prisma generate && prisma migrate deploy`  |
 
 ## Project layout
 
-- `app/` — React Router routes, loaders, actions, Shopify server helpers
-- `extensions/` — Shopify app extensions (theme/checkout)
-- `prisma/` — schema + migrations (PostgreSQL)
-- `cli/` — internal admin scripts (`sh-admin.mjs`); client aliases live in a gitignored `cli/shops.json`
+```
+app/              React Router routes, loaders, actions, Shopify server helpers
+  routes/         _index (landing), app.* (embedded admin), auth.*, webhooks.*
+extensions/       Shopify theme / checkout extensions
+prisma/           Schema + migrations (PostgreSQL)
+cli/              Internal admin scripts (sh-admin.mjs)
+```
 
 ## Public routes
 
-- `/privacy` — privacy policy
-- `/support` — support contact
-- `/docs` — user docs
+- [`/privacy`](https://grow.glitchexecutor.com/privacy) — Privacy policy
+- [`/support`](https://grow.glitchexecutor.com/support) — Support contact
+- [`/docs`](https://grow.glitchexecutor.com/docs) — User documentation
+
+## GDPR compliance
+
+The three mandatory Shopify privacy webhooks are implemented at `app/routes/webhooks.customers.data_request.jsx`, `webhooks.customers.redact.jsx`, and `webhooks.shop.redact.jsx`.
+
+## Support
+
+- Email — [support@glitchexecutor.com](mailto:support@glitchexecutor.com)
+- Issues — [GitHub Issues](https://github.com/glitch-exec-labs/glitch-seo/issues)
 
 ## License
 
 MIT — see [LICENSE](./LICENSE).
 
-## Support
-
-support@glitchexecutor.com
+<sub>© 2026 Glitch Executor Labs</sub>
