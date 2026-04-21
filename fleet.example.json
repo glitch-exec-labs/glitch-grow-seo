@@ -5,7 +5,9 @@
     "baseUrl": "https://grow.glitchexecutor.com",
     "platform": "astro",
     "repo": "glitch-exec-labs/glitch-grow-site",
-    "notes": "Marketing site — test read-only first."
+    "notes": "Marketing site — test read-only first.",
+    "buildDir": "/home/support/glitch-grow-site",
+    "buildCommand": "pnpm build && pm2 restart grow-site"
   },
   {
     "id": "edge-site",

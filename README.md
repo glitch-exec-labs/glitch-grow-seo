@@ -133,7 +133,29 @@ HTML/Astro `applyEdit` persists generated artifacts (JSON-LD, meta overrides, `l
 
 Drop the two snippets in [`integrations/astro/`](./integrations/astro/) into your Astro project and you're wired. See that folder's README for the full install. Each Astro site needs `PUBLIC_GLITCH_SEO_URL` and `GLITCH_SEO_TOKEN` (value of `FLEET_API_TOKEN`) in its deploy env.
 
-Rebuilds are still your responsibility — connect your deploy hook to a "republish" trigger (automatic hook support: next session).
+#### Same-box rebuilds
+
+If the fleet lives on the same server as the agent, configure `buildDir` + `buildCommand` per site in `fleet.json`:
+
+```json
+{
+  "id": "grow-site",
+  "baseUrl": "https://grow.example.com",
+  "platform": "astro",
+  "buildDir": "/home/ops/grow-site",
+  "buildCommand": "pnpm build && pm2 restart grow-site"
+}
+```
+
+Then set `FLEET_AUTO_REBUILD=true` in the agent's env. Every `applyEdit` schedules a **debounced** local rebuild (15 s window, so a burst of Apply clicks coalesces into one build). SSR sites can omit `buildDir` — their `<SeoHead>` picks up new artifacts on the next request, no rebuild needed.
+
+Manual trigger (bypasses debounce):
+
+```
+POST /fleet/:siteId/rebuild?token=$ADMIN_TOKEN
+```
+
+Rebuild status — exit code, tail of stdout/stderr — is surfaced on the `/fleet` dashboard.
 
 ### Scheduled audits
 

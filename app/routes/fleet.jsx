@@ -2,6 +2,7 @@ import { Link, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import prisma from "../db.server";
 import { loadFleet } from "../agent/fleet";
+import { autoRebuildEnabled, lastRebuild } from "../agent/rebuild";
 
 /**
  * /fleet — operator view of the fleet's audit state.
@@ -44,13 +45,14 @@ export const loader = async ({ request }) => {
   const rows = fleet.map((site) => ({
     site,
     latest: bySiteId.get(site.id) ?? null,
+    rebuild: lastRebuild(site.id),
   }));
 
-  return { fleet, rows };
+  return { fleet, rows, autoRebuild: autoRebuildEnabled() };
 };
 
 export default function Fleet() {
-  const { fleet, rows } = useLoaderData();
+  const { fleet, rows, autoRebuild } = useLoaderData();
 
   return (
     <div style={{ maxWidth: 960, margin: "40px auto", padding: "0 24px", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }}>
@@ -74,10 +76,11 @@ export default function Fleet() {
             <th style={th}>Platform</th>
             <th style={th}>Last audit</th>
             <th style={th}>Result</th>
+            <th style={th}>Rebuild</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map(({ site, latest }) => {
+          {rows.map(({ site, latest, rebuild }) => {
             const s = latest?.summary || {};
             const total = s.total ?? 0;
             const passing = s.passing ?? 0;
@@ -107,6 +110,32 @@ export default function Fleet() {
                     <em style={{ color: "#999" }}>—</em>
                   )}
                 </td>
+                <td style={td}>
+                  {!site.buildDir ? (
+                    <em style={{ color: "#999" }}>SSR</em>
+                  ) : rebuild ? (
+                    <>
+                      <span style={{
+                        ...chip,
+                        background:
+                          rebuild.state === "running" ? "#e3f2fd"
+                          : rebuild.lastExitCode === 0 ? "#d4edda"
+                          : rebuild.lastExitCode != null ? "#f8d7da"
+                          : "#eee",
+                      }}>
+                        {rebuild.state === "running"
+                          ? "running"
+                          : rebuild.lastExitCode === 0
+                          ? `ok (${timeAgo(rebuild.lastFinishedAt)})`
+                          : rebuild.lastExitCode != null
+                          ? `exit ${rebuild.lastExitCode}`
+                          : "idle"}
+                      </span>
+                    </>
+                  ) : (
+                    <em style={{ color: "#999" }}>never</em>
+                  )}
+                </td>
               </tr>
             );
           })}
@@ -114,10 +143,23 @@ export default function Fleet() {
       </table>
 
       <p style={{ marginTop: 24, fontSize: 13, color: "#777" }}>
-        LLM mode: <code>{process.env.AGENT_LLM_MODE || "off"}</code>. When off, fleet audits run deterministically with zero OpenAI cost.
+        LLM mode: <code>{process.env.AGENT_LLM_MODE || "off"}</code> · Auto-rebuild: <code>{autoRebuild ? "on" : "off"}</code>. When LLM is off, fleet audits run deterministically with zero OpenAI cost. Manual rebuild: <code>POST /fleet/:siteId/rebuild?token=$ADMIN_TOKEN</code>.
       </p>
     </div>
   );
+}
+
+function timeAgo(date) {
+  if (!date) return "never";
+  const t = typeof date === "string" ? new Date(date) : date;
+  const diff = Math.max(0, Date.now() - t.getTime());
+  const s = Math.round(diff / 1000);
+  if (s < 60) return `${s}s ago`;
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.round(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.round(h / 24)}d ago`;
 }
 
 const th = { padding: "8px 12px", fontWeight: 600, fontSize: 13, color: "#444" };
