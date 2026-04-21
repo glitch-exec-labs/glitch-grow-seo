@@ -2,15 +2,17 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 // Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
 // enough when changing adapters.
 // See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
 }
 
 model Session {
@@ -31,4 +33,59 @@ model Session {
   emailVerified Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+/// One end-to-end agent run. Persisted for history + admin UI.
+model AgentRun {
+  id             String   @id @default(cuid())
+  createdAt      DateTime @default(now())
+  siteId         String   // e.g. myshop.myshopify.com, or a raw URL for html connector
+  platform       String   // "shopify" | "html" | "wix"
+  summary        Json     // {passing, failing, unknown, total}
+  signals        Json     // Signal[]
+  findings       Json     // Finding[]
+  plannerModel   String?
+  plannerSkipped Boolean  @default(false)
+  error          String?
+
+  @@index([siteId, createdAt(sort: Desc)])
+  @@index([platform, createdAt(sort: Desc)])
+}
+
+/// Agent's long-term memory. One row per run (or per lesson) per site.
+/// embedding uses pgvector; Prisma does not model the type natively, so
+/// reads/writes of the vector go through raw SQL in app/agent/memory.ts.
+model AgentMemory {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  siteId   String
+  platform String
+  kind     String   // "run_summary" | "lesson_learned" | ...
+  summary  String   @db.Text
+  signals  Json?
+  findings Json?
+  metrics  Json?
+
+  // Declared as Unsupported so Prisma's migration emits the column as
+  // vector(1536); raw SQL handles reads/writes. Nullable so runs without
+  // an embedding provider still persist.
+  embedding Unsupported("vector(1536)")?
+
+  @@index([siteId, createdAt(sort: Desc)])
+  @@index([siteId, kind])
+}
+
+/// A site the agent is attached to. v0 is Shopify-only (the Session row
+/// already scopes each store), but HTML/Wix sites need explicit records.
+model SiteConnection {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  platform  String   // "shopify" | "html" | "wix"
+  siteId    String   @unique
+  label     String?
+  config    Json?    // platform-specific (base URL, API token ref, etc.)
+  enabled   Boolean  @default(true)
+
+  @@index([platform])
 }

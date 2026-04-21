@@ -19,9 +19,57 @@
 
 ## What it does
 
-- **Audit.** One-click pass/fail checklist across structured data, breadcrumbs, canonical tags, and `og:image` — run against the live storefront.
-- **Schema coverage.** Product JSON-LD with `category`, `material`, and `additionalProperty`. `FAQPage` and `BreadcrumbList` wired into the theme via App Embed blocks.
-- **AI search ready.** Generates `llms.txt` and rewrites product copy into a format that traditional search and AI answer engines can cite.
+An autonomous SEO agent that plugs into **any website** — Shopify today, plain HTML and Wix next — and runs the same audit → plan → execute → verify loop across every platform. One agent brain, pluggable site connectors.
+
+- **Audit.** Deterministic signal extraction across structured data, breadcrumbs, canonical, `og:image`, semantic H1, meta description, and AI-search readiness (`llms.txt`).
+- **Plan.** An LLM planner (Claude) synthesizes the signals plus prior-run memory into a ranked, short list of findings with recommendations.
+- **Memory.** Every run is persisted to a pgvector-backed memory table; hybrid retrieval (vector + recency decay) feeds the planner prior context so it doesn't resurface already-fixed issues.
+- **Execute.** (Coming next.) Connectors write schema/meta/copy back to the source — Shopify theme files and metafields, Wix via Velo, plain HTML via diff/PR.
+- **Verify.** (Coming next.) Re-crawl after a write to confirm the change propagated.
+
+## Architecture
+
+```
+┌─────────── Core agent (platform-agnostic) ────────────┐
+│  Auditor → Planner → Executor → Verifier              │
+│     ↑         ↑          ↓         ↑                  │
+│     └── signals & ───────┴── writes & reads ─────┐    │
+│         prior memory                             │    │
+│                                                  ▼    │
+│                          Memory (Postgres + pgvector) │
+└───────────────────┬───────────────────────────────────┘
+                    │ same capability interface
+        ┌───────────┼───────────┐
+        ▼           ▼           ▼
+  ShopifyConnector  HTMLConnector  WixConnector
+    (v0: read)        (stub)         (stub)
+```
+
+Every connector implements the same [`Connector`](./app/agent/types.ts) interface: `crawlSample`, `applyEdit`, `verify`. The core agent is identical across platforms — adding a new platform means dropping one file in `app/agent/connectors/`.
+
+### Agent layout
+
+```
+app/agent/
+  types.ts              Connector interface + Signal / Finding / AgentRunResult types
+  signals.ts            Deterministic HTML signal extractor (regex-only, fast)
+  llm.ts                Anthropic planner — fail-open if no API key
+  embeddings.ts         OpenAI embedding shim for memory retrieval
+  memory.ts             pgvector + recency-decay hybrid retrieval
+  runner.ts             One full agent turn: crawl → signals → recall → plan → persist
+  connectors/
+    shopify.ts          Uses Admin GraphQL + storefront fetch
+    html.ts             Stub — base URL fetch only
+    wix.ts              Stub
+  index.ts              Public surface
+```
+
+### Environment
+
+Both AI providers are optional — the agent still runs without them, falling back to deterministic findings and recency-only memory:
+
+- `ANTHROPIC_API_KEY` — planner. Without it, findings are raw failing signals.
+- `OPENAI_API_KEY` — embeddings. Without it, memory retrieval is recency-only.
 
 ## Stack
 
@@ -67,10 +115,21 @@ pnpm dev                      # shopify app dev
 ```
 app/              React Router routes, loaders, actions, Shopify server helpers
   routes/         _index (landing), app.* (embedded admin), auth.*, webhooks.*
+  agent/          Platform-agnostic SEO agent (see Architecture above)
 extensions/       Shopify theme / checkout extensions
-prisma/           Schema + migrations (PostgreSQL)
+prisma/           Schema + migrations (PostgreSQL + pgvector)
 cli/              Internal admin scripts (sh-admin.mjs)
 ```
+
+## Adding a new platform
+
+1. Create `app/agent/connectors/<platform>.ts`.
+2. Export a factory that returns a `Connector` (see `app/agent/types.ts`).
+3. Implement `crawlSample` first — that unlocks read-only audit + memory.
+4. Implement `applyEdit` + `verify` when the executor lands.
+5. Re-export from `app/agent/index.ts`.
+
+That is the entire platform onboarding cost. The auditor, planner, and memory layer stay untouched.
 
 ## Public routes
 
