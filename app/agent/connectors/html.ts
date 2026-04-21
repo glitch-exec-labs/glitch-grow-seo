@@ -17,6 +17,7 @@
  * webhook from your CI when the agent publishes.
  */
 import prisma from "../../db.server";
+import { autoRebuildEnabled, scheduleRebuild } from "../rebuild";
 import type { Connector, PageEdit, PageSample, VerifyResult } from "../types";
 
 const USER_AGENT = "GlitchSEO-Agent/0.3";
@@ -147,6 +148,13 @@ export function htmlConnector(baseUrl: string): Connector {
         create: { siteId: normalized, scope, pageKey, kind, key, content, rationale },
         update: { content, rationale },
       });
+
+      // Trigger a same-box rebuild if the fleet site has buildDir set
+      // and FLEET_AUTO_REBUILD=true. Debounced — bursts of edits
+      // coalesce into one rebuild.
+      if (autoRebuildEnabled()) {
+        scheduleRebuild(normalized);
+      }
     },
 
     async verify(url, expect): Promise<VerifyResult> {

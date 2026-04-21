@@ -13,7 +13,55 @@ Body text (if present) shown as indented sub-bullets.
 
 ## 2026-04-21
 
-- **04:15 UTC** — auto-sync: 2026-04-21 04:15 UTC (`656aa61`) — 11 files
+- **07:00 UTC** — auto-sync: 2026-04-21 07:00 UTC (`b1b0c3b`) — 3 files
+        M	app/agent/connectors/html.ts
+        M	app/agent/fleet.ts
+        A	app/agent/rebuild.ts
+- **06:33 UTC** — feat(fleet): Astro write strategy via PublishedArtifact + public API (`0bf0931`) — 10 files
+    Closes the write loop for HTML / Astro fleet sites so the agent can
+    actually fix them, not just audit.
+    Architecture
+    - New PublishedArtifact Prisma model (migration 20260421150000):
+      one row per (siteId, scope, pageKey, kind, key), upserted on every
+      applyEdit so the latest published version wins without history.
+    - htmlConnector.applyEdit now implemented: serializes PageEdit into a
+      PublishedArtifact row. No per-site git plumbing — everything lives
+      in the agent's DB.
+    - Two new public endpoints:
+- **06:04 UTC** — feat(fleet): audit our own Astro fleet for self-testing (`5d5ab26`) — 10 files
+    Config-file-driven fleet registration, CLI runner, status page.
+    - fleet.json (gitignored) / FLEET_SITES_JSON env: list of sites with
+      id, name, baseUrl, platform ("astro"|"html"|"shopify"|"wix").
+    - fleet.example.json: committed template with the four marketing sites
+      as an example shape.
+    - app/agent/fleet.ts: loader that reads file or inline env JSON.
+    - cli/audit-fleet.ts + `pnpm audit-fleet [id]`: iterates fleet, runs
+      runAudit via htmlConnector, prints summary. Cron-safe.
+    - app/routes/fleet.jsx: status page at /fleet?token=$ADMIN_TOKEN
+      showing each site's latest audit pass/fail ratio. Unauth but
+- **05:54 UTC** — feat(agent): kill switch, proposer, product memory, runs UI, cron, html reads (`db4ab21`) — 23 files
+    Five-item bundle wired behind a cost-safe default.
+    COST SAFETY
+    - New central LLM kill switch (app/agent/llmEnabled.ts) gating every
+      OpenAI path: planner, all generators, embeddings, proposer.
+    - Default AGENT_LLM_MODE=off. Production deploys cannot burn credits
+      until the operator explicitly sets AGENT_LLM_MODE=live.
+    - Cron endpoint double-gated (AGENT_CRON_ENABLED + AGENT_CRON_TOKEN).
+    AGENT-PROPOSED CLIENT-MEMORY FACTS
+    - app/agent/proposer.ts: post-audit LLM call that suggests additions to
+      ClientMemory (voice, keyTerms, sameAs, etc.) grounded in observed HTML.
+- **04:16 UTC** — feat(agent): client memory — brand profile threaded through all generators (`1dcdf03`) — 6 files
+    Adds ClientMemory: a stable per-site brand/positioning profile that
+    every LLM generator reads on every edit. Distinct from AgentMemory
+    (per-run episodic log).
+    - prisma: ClientMemory model (brandName, tagline, voice, audience,
+      differentiators, categories, keyTerms, avoidTerms, shipping/returns,
+      sameAs, notes) + migration 20260421130000_client_memory
+    - app/agent/clientMemory.ts: load / save / ensure / renderForPrompt
+    - Runner auto-seeds from shop context on first audit; never overwrites
+      merchant-provided fields
+    - Every LLM generator (faq, llmstxt, copy, meta) injects client_memory
+- **04:15 UTC** — auto-sync: 2026-04-21 04:15 UTC (`bc1720e`) — 12 files
         A	app/agent/clientMemory.ts
         M	app/agent/generators/breadcrumb.ts
         M	app/agent/generators/copy.ts

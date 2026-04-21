@@ -25,6 +25,18 @@ export interface FleetSite {
   repo?: string;
   /** Freeform notes for operators. */
   notes?: string;
+
+  /**
+   * Local rebuild config for same-box fleet deployments. If buildDir is
+   * set, the agent can spawn `buildCommand` (default `pnpm build`)
+   * inside it after an applyEdit, so SSG Astro sites pick up the new
+   * PublishedArtifact without a human clicking deploy.
+   *
+   * Omit buildDir for SSR sites — their <SeoHead> fetches at request
+   * time, so no rebuild is needed.
+   */
+  buildDir?: string;
+  buildCommand?: string;
 }
 
 export function loadFleet(): FleetSite[] {
@@ -61,6 +73,8 @@ function normalize(raw: unknown): FleetSite[] {
       platform: (x.platform as FleetSite["platform"]) ?? "html",
       repo: typeof x.repo === "string" ? x.repo : undefined,
       notes: typeof x.notes === "string" ? x.notes : undefined,
+      buildDir: typeof x.buildDir === "string" ? x.buildDir : undefined,
+      buildCommand: typeof x.buildCommand === "string" ? x.buildCommand : undefined,
     }))
     .filter((s) => s.id && s.baseUrl);
 }
