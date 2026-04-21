@@ -1,15 +1,14 @@
 /**
- * Organization JSON-LD generator — deterministic, no LLM.
- *
- * Builds a schema.org/Organization block from shop context. Merchants
- * usually want Organization schema so Google can show the brand in the
- * knowledge panel and AI assistants can cite the store.
+ * Organization JSON-LD — deterministic. Merges platform-fetched shop
+ * data with ClientMemory-provided brand facts (tagline, sameAs, etc).
  */
+import type { ClientMemory } from "../clientMemory";
 import type { EditProposal, PageEdit } from "../types";
 
 export function generateOrganizationSchema(
   proposal: EditProposal,
   ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
 ): PageEdit {
   const shop = ctx as {
     name?: string;
@@ -17,19 +16,22 @@ export function generateOrganizationSchema(
     logoUrl?: string;
     email?: string;
     description?: string;
-    sameAs?: string[];
   };
+
+  const sameAs = new Set<string>();
+  if (cm?.sameAs) cm.sameAs.forEach((s) => s && sameAs.add(s));
 
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "Organization",
-    name: shop.name ?? "",
+    name: cm?.brandName || shop.name || "",
     url: shop.url ?? "",
   };
   if (shop.logoUrl) schema.logo = shop.logoUrl;
-  if (shop.description) schema.description = shop.description;
+  const description = cm?.tagline || shop.description;
+  if (description) schema.description = description;
   if (shop.email) schema.email = shop.email;
-  if (Array.isArray(shop.sameAs) && shop.sameAs.length > 0) schema.sameAs = shop.sameAs;
+  if (sameAs.size > 0) schema.sameAs = [...sameAs];
 
   return {
     kind: "jsonld",

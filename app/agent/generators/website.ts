@@ -1,12 +1,10 @@
-/**
- * WebSite + SearchAction JSON-LD — deterministic.
- * Enables Google's sitelinks search box.
- */
+import type { ClientMemory } from "../clientMemory";
 import type { EditProposal, PageEdit } from "../types";
 
 export function generateWebsiteSchema(
   proposal: EditProposal,
   ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
 ): PageEdit {
   const shop = ctx as { name?: string; url?: string };
   const base = (shop.url ?? "").replace(/\/+$/, "");
@@ -14,7 +12,7 @@ export function generateWebsiteSchema(
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
     "@type": "WebSite",
-    name: shop.name ?? "",
+    name: cm?.brandName || shop.name || "",
     url: shop.url ?? "",
     potentialAction: {
       "@type": "SearchAction",

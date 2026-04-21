@@ -1,20 +1,19 @@
 /**
- * Edit generators — hydrate an EditProposal (what the planner wants done)
- * into a concrete PageEdit (what the executor applies).
+ * Edit generators — hydrate an EditProposal (what the planner wants
+ * done) into a concrete PageEdit (what the executor applies).
  *
- * Deterministic generators (Organization, WebSite, Product schema,
- * Breadcrumb) read platform context from `connector.fetchContext()` and
- * build JSON-LD by hand. LLM generators (FAQ, llms.txt, copy, meta
- * description) call OpenAI with shop context for creative output.
+ * Every generator receives three inputs:
+ *   proposal     — planner's intent (kind + scope + rationale)
+ *   ctx          — platform-fetched context (shop / product data)
+ *   clientMemory — stable brand + positioning facts (see
+ *                  app/agent/clientMemory.ts)
  *
- * Every generator is async and returns a full PageEdit. The preview UI
- * shows the result before the executor commits.
+ * Deterministic generators read ctx + clientMemory and hand-build the
+ * JSON-LD. LLM generators inject clientMemory into their system prompts
+ * so output stays on-brand.
  */
-import type {
-  Connector,
-  EditProposal,
-  PageEdit,
-} from "../types";
+import type { ClientMemory } from "../clientMemory";
+import type { Connector, EditProposal, PageEdit } from "../types";
 import { generateOrganizationSchema } from "./organization";
 import { generateWebsiteSchema } from "./website";
 import { generateProductSchema } from "./product";
@@ -24,41 +23,48 @@ import { generateLlmsTxt } from "./llmstxt";
 import { generateCopyRewrite } from "./copy";
 import { generateMetaDescription } from "./meta";
 
+export interface GenerateOpts {
+  signalId?: string;
+  clientMemory?: ClientMemory | null;
+}
+
 export async function generateEdit(
   connector: Connector,
   proposal: EditProposal,
-  opts?: { signalId?: string },
+  opts: GenerateOpts = {},
 ): Promise<PageEdit> {
   const ctx = await connector.fetchContext(proposal.scope, proposal.productHandle);
+  const cm = opts.clientMemory ?? null;
 
   switch (proposal.kind) {
     case "jsonld":
-      return await routeJsonLd(proposal, ctx, opts?.signalId);
+      return routeJsonLd(proposal, ctx, cm, opts.signalId);
     case "meta":
-      return await generateMetaDescription(proposal, ctx);
+      return generateMetaDescription(proposal, ctx, cm);
     case "llmstxt":
-      return await generateLlmsTxt(proposal, ctx);
+      return generateLlmsTxt(proposal, ctx, cm);
     case "copy":
-      return await generateCopyRewrite(proposal, ctx);
+      return generateCopyRewrite(proposal, ctx, cm);
   }
 }
 
 async function routeJsonLd(
   proposal: EditProposal,
   ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
   signalId?: string,
 ): Promise<PageEdit> {
-  // Route to the right JSON-LD generator using the signal id as a hint.
-  // Falls back on scope alone when the signal id isn't carried through.
   const sid = signalId ?? "";
   if (proposal.scope === "shop") {
-    if (sid.includes("jsonld.website")) return generateWebsiteSchema(proposal, ctx);
-    if (sid.includes("jsonld.faq")) return await generateFaqSchema(proposal, ctx);
-    return generateOrganizationSchema(proposal, ctx);
+    if (sid.includes("jsonld.website")) return generateWebsiteSchema(proposal, ctx, cm);
+    if (sid.includes("jsonld.faq")) return await generateFaqSchema(proposal, ctx, cm);
+    return generateOrganizationSchema(proposal, ctx, cm);
   }
   if (proposal.scope === "product") {
-    if (sid.includes("breadcrumb")) return generateBreadcrumbSchema(proposal, ctx);
-    return generateProductSchema(proposal, ctx);
+    if (sid.includes("breadcrumb")) return generateBreadcrumbSchema(proposal, ctx, cm);
+    return generateProductSchema(proposal, ctx, cm);
   }
-  return generateOrganizationSchema(proposal, ctx);
+  return generateOrganizationSchema(proposal, ctx, cm);
 }
+
+export type { ClientMemory };

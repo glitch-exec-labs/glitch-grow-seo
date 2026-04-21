@@ -1,15 +1,10 @@
-/**
- * BreadcrumbList JSON-LD — deterministic.
- *
- * Collections → product gives a two-level breadcrumb on most Shopify
- * stores. When the product context carries a `collections[]` array we
- * use the first collection as the parent.
- */
+import type { ClientMemory } from "../clientMemory";
 import type { EditProposal, PageEdit } from "../types";
 
 export function generateBreadcrumbSchema(
   proposal: EditProposal,
   ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
 ): PageEdit {
   const p = ctx as {
     title?: string;
@@ -21,31 +16,18 @@ export function generateBreadcrumbSchema(
     handle?: string;
   };
 
+  const homeLabel = cm?.brandName || p.shopName || "Home";
+
   const items: Record<string, unknown>[] = [];
   let pos = 1;
   if (p.shopUrl) {
-    items.push({
-      "@type": "ListItem",
-      position: pos++,
-      name: p.shopName ?? "Home",
-      item: p.shopUrl,
-    });
+    items.push({ "@type": "ListItem", position: pos++, name: homeLabel, item: p.shopUrl });
   }
   if (p.collectionTitle && p.collectionUrl) {
-    items.push({
-      "@type": "ListItem",
-      position: pos++,
-      name: p.collectionTitle,
-      item: p.collectionUrl,
-    });
+    items.push({ "@type": "ListItem", position: pos++, name: p.collectionTitle, item: p.collectionUrl });
   }
   if (p.title && p.url) {
-    items.push({
-      "@type": "ListItem",
-      position: pos++,
-      name: p.title,
-      item: p.url,
-    });
+    items.push({ "@type": "ListItem", position: pos++, name: p.title, item: p.url });
   }
 
   return {

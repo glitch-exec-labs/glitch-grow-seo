@@ -1,15 +1,17 @@
 /**
- * Product JSON-LD — deterministic from product context.
+ * Product JSON-LD — deterministic.
  *
- * Emits a schema.org/Product block with offers, aggregateRating (when
- * present), and additionalProperty entries derived from product tags
- * and metafields. Google requires this for Product rich results.
+ * ClientMemory contributes brand name override and key-term emphasis
+ * (when brandName is set, it trumps the Shopify vendor field for the
+ * `brand` property — common when vendor is internal).
  */
+import type { ClientMemory } from "../clientMemory";
 import type { EditProposal, PageEdit } from "../types";
 
 export function generateProductSchema(
   proposal: EditProposal,
   ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
 ): PageEdit {
   const p = ctx as {
     title?: string;
@@ -20,13 +22,15 @@ export function generateProductSchema(
     vendor?: string;
     price?: string;
     currency?: string;
-    availability?: string; // "InStock" | "OutOfStock"
+    availability?: string;
     sku?: string;
     gtin?: string;
     tags?: string[];
     ratingValue?: number;
     reviewCount?: number;
   };
+
+  const brandName = cm?.brandName || p.vendor;
 
   const schema: Record<string, unknown> = {
     "@context": "https://schema.org",
@@ -35,7 +39,7 @@ export function generateProductSchema(
     description: stripHtml(p.description ?? "").slice(0, 5000),
     ...(p.imageUrls?.length ? { image: p.imageUrls } : {}),
     ...(p.url ? { url: p.url } : {}),
-    ...(p.vendor ? { brand: { "@type": "Brand", name: p.vendor } } : {}),
+    ...(brandName ? { brand: { "@type": "Brand", name: brandName } } : {}),
     ...(p.sku ? { sku: p.sku } : {}),
     ...(p.gtin ? { gtin: p.gtin } : {}),
   };
@@ -74,8 +78,6 @@ function stripHtml(s: string): string {
   return s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-/** Mine product tags for `key:value` pairs we can surface as structured
- *  attributes. Common merchant convention in Shopify. */
 function extractAdditionalProperty(tags: string[]): unknown[] {
   const out: unknown[] = [];
   for (const tag of tags) {

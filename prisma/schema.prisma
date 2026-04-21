@@ -75,6 +75,47 @@ model AgentMemory {
   @@index([siteId, kind])
 }
 
+/// Long-term brand / positioning facts about one site. Distinct from
+/// AgentMemory: AgentMemory is per-run episodic; ClientMemory is stable
+/// semantic context the generators read on every edit (brand voice,
+/// target audience, differentiators, policies, social links, etc).
+///
+/// Seeded from platform APIs on first audit (shop name, description,
+/// logo, etc.) and enriched by the merchant via the admin UI. Proposed
+/// facts from the LLM land here after merchant approval in a later pass.
+model ClientMemory {
+  id              String   @id @default(cuid())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  siteId          String   @unique
+  platform        String
+
+  // Brand
+  brandName       String?
+  tagline         String?
+  brandVoice      String?  @db.Text
+  targetAudience  String?  @db.Text
+  differentiators String?  @db.Text
+
+  // Catalog + tone
+  categories      String[] @default([])
+  keyTerms        String[] @default([])
+  avoidTerms      String[] @default([])
+
+  // Policies
+  shippingInfo    String?  @db.Text
+  returnsInfo     String?  @db.Text
+
+  // Social / Organization.sameAs
+  sameAs          String[] @default([])
+
+  // Free-form merchant notes
+  notes           String?  @db.Text
+
+  // LLM-proposed facts pending review (future work)
+  learnedFacts    Json?
+}
+
 /// A site the agent is attached to. v0 is Shopify-only (the Session row
 /// already scopes each store), but HTML/Wix sites need explicit records.
 model SiteConnection {

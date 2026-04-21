@@ -1,13 +1,11 @@
 /**
- * llms.txt generator — LLM-generated site manifest for AI answer engines.
- *
- * llms.txt is the emerging convention (2024-2025) for telling LLMs what
- * a site is and how to cite it. It's markdown, hosted at /llms.txt.
- * This generator produces the content; the Shopify connector hosts it
- * via an app route + registers a 301 redirect so /llms.txt on the
- * storefront resolves to our app.
+ * llms.txt generator — LLM-generated site manifest, grounded in both
+ * platform context and the merchant's ClientMemory (brand, voice,
+ * differentiators, policies, social).
  */
 import OpenAI from "openai";
+import type { ClientMemory } from "../clientMemory";
+import { renderForPrompt } from "../clientMemory";
 import type { EditProposal, PageEdit } from "../types";
 
 const MODEL = process.env.OPENAI_MODEL || "gpt-4o";
@@ -32,15 +30,17 @@ Structure:
   - Site: <url>
 
 Rules:
-- Grounded in shop context. Do not invent URLs, policies, or products.
-- ≤ 40 lines. Be concrete, no marketing fluff.
-- If a section has nothing honest to say, omit the section.`;
+- Grounded in shop context AND client_memory. Do not invent URLs, policies, products.
+- Use brand voice from client_memory when set.
+- ≤ 40 lines. Concrete, no marketing fluff.
+- Omit sections that would require invention.`;
 
 export async function generateLlmsTxt(
   proposal: EditProposal,
   ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
 ): Promise<PageEdit> {
-  const fallbackContent = buildFallback(ctx);
+  const fallbackContent = buildFallback(ctx, cm);
   if (!process.env.OPENAI_API_KEY) {
     return {
       kind: "llmstxt",
@@ -51,13 +51,15 @@ export async function generateLlmsTxt(
 
   try {
     const client = new OpenAI();
+    const memory = renderForPrompt(cm);
+    const userPayload = `Shop context:\n${JSON.stringify(ctx, null, 2)}${memory ? `\n\n${memory}` : ""}`;
     const res = await client.chat.completions.create({
       model: MODEL,
       max_tokens: 1000,
       temperature: 0.2,
       messages: [
         { role: "system", content: SYSTEM },
-        { role: "user", content: `Shop context:\n${JSON.stringify(ctx, null, 2)}` },
+        { role: "user", content: userPayload },
       ],
     });
     const content = (res.choices[0]?.message?.content ?? fallbackContent).trim();
@@ -75,11 +77,14 @@ export async function generateLlmsTxt(
   }
 }
 
-function buildFallback(ctx: Record<string, unknown>): string {
+function buildFallback(
+  ctx: Record<string, unknown>,
+  cm: ClientMemory | null,
+): string {
   const c = ctx as { name?: string; url?: string; description?: string };
   const lines = [
-    `# ${c.name ?? "Store"}`,
-    c.description ? `> ${c.description}` : "",
+    `# ${cm?.brandName || c.name || "Store"}`,
+    cm?.tagline || (c.description ? `> ${c.description}` : ""),
     "",
     "## Key pages",
     c.url ? `- [Home](${c.url})` : "",
