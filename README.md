@@ -122,7 +122,18 @@ For self-testing across a group of sites you own (marketing sites, docs, client 
 - Run audits with `pnpm audit-fleet` (all sites) or `pnpm audit-fleet grow-site` (one).
 - View the fleet status at `/fleet?token=$ADMIN_TOKEN`.
 - Cron-able: `0 6 * * * cd /path/to/repo && pnpm audit-fleet`.
-- Reads use the HTML connector (sitemap walk + page fetches) and auto-detect Astro fingerprints; writes for plain-HTML / Astro sites are not yet implemented.
+- Reads use the HTML connector (sitemap walk + page fetches) and auto-detect Astro fingerprints.
+
+#### Writing back to Astro sites
+
+HTML/Astro `applyEdit` persists generated artifacts (JSON-LD, meta overrides, `llms.txt`, copy rewrites) to the `PublishedArtifact` table. Astro sites pull them at build time via two public endpoints:
+
+- `GET /api/fleet/:siteId/head?path=/some/path` — returns `{ jsonld: [...], meta: { title, description } }`. Requires `Authorization: Bearer $FLEET_API_TOKEN`.
+- `GET /api/fleet/:siteId/llms.txt` — returns the latest `llms.txt` as `text/plain`. Public (AI crawlers don't carry auth).
+
+Drop the two snippets in [`integrations/astro/`](./integrations/astro/) into your Astro project and you're wired. See that folder's README for the full install. Each Astro site needs `PUBLIC_GLITCH_SEO_URL` and `GLITCH_SEO_TOKEN` (value of `FLEET_API_TOKEN`) in its deploy env.
+
+Rebuilds are still your responsibility — connect your deploy hook to a "republish" trigger (automatic hook support: next session).
 
 ### Scheduled audits
 

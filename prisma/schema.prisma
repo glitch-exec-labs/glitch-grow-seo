@@ -116,6 +116,28 @@ model ClientMemory {
   learnedFacts    Json?
 }
 
+/// Published artifact — the concrete output of an applyEdit() for
+/// platforms that don't have native metafield storage (HTML / Astro /
+/// Wix). Read by the /api/fleet/:siteId/* endpoints at build time.
+///
+/// One row per (site, scope, pageKey, kind, key). Upserted on every
+/// apply so the latest version wins without accumulating history.
+model PublishedArtifact {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  siteId      String   // fleet id (or raw URL for ad-hoc html sites)
+  scope       String   // "shop" | "product" (= page in html context)
+  pageKey     String   // path for scope=product/html; "__shop" for scope=shop
+  kind        String   // "jsonld" | "meta" | "llmstxt" | "copy"
+  key         String   // "Organization" | "Product" | "llmstxt" | "meta" ...
+  content     Json
+  rationale   String?  @db.Text
+
+  @@unique([siteId, scope, pageKey, kind, key])
+  @@index([siteId, scope, pageKey])
+}
+
 /// Per-product override of ClientMemory. Looked up by (siteId, handle)
 /// and merged on top of the site-level profile by the generators so an
 /// individual product can have its own voice / keyTerms / avoidTerms.

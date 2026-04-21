@@ -1,0 +1,59 @@
+---
+/**
+ * Glitch Grow AI SEO Agent — Astro <head> integration.
+ *
+ * Drop this component into your Astro layout:
+ *
+ *   ---
+ *   import SeoHead from "../components/GlitchSeoHead.astro";
+ *   ---
+ *   <html>
+ *     <head>
+ *       <SeoHead siteId="grow-site" path={Astro.url.pathname} />
+ *       <!-- your own <title>, <meta>, etc. -->
+ *     </head>
+ *     ...
+ *   </html>
+ *
+ * Required env:
+ *   PUBLIC_GLITCH_SEO_URL  = https://grow.glitchexecutor.com
+ *   GLITCH_SEO_TOKEN       = <FLEET_API_TOKEN from the agent's .env>
+ *
+ * Runs at build time (SSG) — no runtime dependency on the agent.
+ * Agent publishes → rebuild triggered via CI hook → site picks up.
+ */
+
+interface Props {
+  siteId: string;
+  path: string;
+}
+
+const { siteId, path } = Astro.props;
+
+const base = import.meta.env.PUBLIC_GLITCH_SEO_URL || "";
+const token = import.meta.env.GLITCH_SEO_TOKEN || "";
+
+let data: { jsonld: unknown[]; meta: { title: string | null; description: string | null } } = {
+  jsonld: [],
+  meta: { title: null, description: null },
+};
+
+if (base && token) {
+  try {
+    const res = await fetch(
+      `${base}/api/fleet/${siteId}/head?path=${encodeURIComponent(path)}`,
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
+    if (res.ok) data = await res.json();
+  } catch {
+    // Build-time network failure — emit nothing, don't break the build.
+  }
+}
+---
+{data.meta.title && <title>{data.meta.title}</title>}
+{data.meta.description && (
+  <meta name="description" content={data.meta.description} />
+)}
+{data.jsonld.map((ld) => (
+  <script type="application/ld+json" set:html={JSON.stringify(ld)} />
+))}
