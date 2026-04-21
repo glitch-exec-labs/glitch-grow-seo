@@ -107,6 +107,23 @@ Product copy rewrites go through the standard `productUpdate` Admin mutation.
 | `AGENT_CRON_ENABLED` | `false` | Opt-in for scheduled audits via `POST /agent/cron/run`. |
 | `AGENT_CRON_TOKEN` | unset | Shared secret checked against `x-cron-token` header. |
 
+### Fleet testing — audit your own Astro / HTML sites
+
+For self-testing across a group of sites you own (marketing sites, docs, client properties), register them in `fleet.json` at the repo root:
+
+```json
+[
+  { "id": "grow-site",  "name": "Glitch Grow",  "baseUrl": "https://grow.example.com",  "platform": "astro" },
+  { "id": "edge-site",  "name": "Glitch Edge",  "baseUrl": "https://edge.example.com",  "platform": "astro" }
+]
+```
+
+- `fleet.example.json` is a committed template; `fleet.json` is gitignored.
+- Run audits with `pnpm audit-fleet` (all sites) or `pnpm audit-fleet grow-site` (one).
+- View the fleet status at `/fleet?token=$ADMIN_TOKEN`.
+- Cron-able: `0 6 * * * cd /path/to/repo && pnpm audit-fleet`.
+- Reads use the HTML connector (sitemap walk + page fetches) and auto-detect Astro fingerprints; writes for plain-HTML / Astro sites are not yet implemented.
+
 ### Scheduled audits
 
 One endpoint, two independent gates:

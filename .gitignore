@@ -39,6 +39,11 @@ cli/shops.json
 cli/shops.private.json
 cli/clients/*.env
 
+# ─── Fleet config (may hold private property URLs) ────
+fleet.json
+fleet.*.json
+!fleet.example.json
+
 # ─── OS / editor junk ─────────────────────────────────
 .DS_Store
 Thumbs.db

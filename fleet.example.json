@@ -1,0 +1,31 @@
+[
+  {
+    "id": "grow-site",
+    "name": "Glitch Grow",
+    "baseUrl": "https://grow.glitchexecutor.com",
+    "platform": "astro",
+    "repo": "glitch-exec-labs/glitch-grow-site",
+    "notes": "Marketing site — test read-only first."
+  },
+  {
+    "id": "edge-site",
+    "name": "Glitch Edge",
+    "baseUrl": "https://edge.glitchexecutor.com",
+    "platform": "astro",
+    "repo": "glitch-exec-labs/glitch-edge-site"
+  },
+  {
+    "id": "trade-site",
+    "name": "Glitch Trade",
+    "baseUrl": "https://trade.glitchexecutor.com",
+    "platform": "astro",
+    "repo": "glitch-exec-labs/glitch-trade-site"
+  },
+  {
+    "id": "exec-portfolio",
+    "name": "Glitch Executor Labs",
+    "baseUrl": "https://glitchexecutor.com",
+    "platform": "astro",
+    "repo": "glitch-exec-labs/glitch-executor-labs-portfolio"
+  }
+]

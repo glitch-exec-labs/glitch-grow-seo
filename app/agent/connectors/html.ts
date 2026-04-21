@@ -59,6 +59,18 @@ function guessRole(url: string, base: string): PageSample["role"] {
   return "page";
 }
 
+/** Detect common Astro fingerprints so the planner's prior memory can
+ *  key on platform quirks (view transitions, island hydration, etc.). */
+function detectAstro(html: string | null): boolean {
+  if (!html) return false;
+  return (
+    /<astro-island\b/i.test(html) ||
+    /data-astro-cid-/i.test(html) ||
+    /\/_astro\/[a-z0-9.-]+\.(?:js|css)/i.test(html) ||
+    /<meta\s+name=["']generator["'][^>]+content=["']Astro/i.test(html)
+  );
+}
+
 export function htmlConnector(baseUrl: string): Connector {
   const normalized = baseUrl.replace(/\/+$/, "");
   return {
@@ -85,11 +97,15 @@ export function htmlConnector(baseUrl: string): Connector {
       }
 
       return Promise.all(
-        urls.slice(0, maxPages).map(async (url) => ({
-          url,
-          role: guessRole(url, normalized),
-          html: await getText(url),
-        })),
+        urls.slice(0, maxPages).map(async (url) => {
+          const html = await getText(url);
+          return {
+            url,
+            role: guessRole(url, normalized),
+            html,
+            meta: { astro: detectAstro(html) },
+          };
+        }),
       );
     },
 
