@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -8,18 +8,17 @@ import { runAudit, shopifyConnector } from "../agent";
 /**
  * Glitch Grow AI SEO Agent — embedded admin home page.
  *
- * Loader: fetches basic shop context for the dashboard header.
- *
- * Action: kicks off one agent run via the platform-agnostic runner.
- * The runner uses shopifyConnector to crawl a representative page
- * sample, extracts deterministic SEO signals, retrieves prior memory,
- * calls the LLM planner (fail-open), persists an AgentRun + memory
- * row, and returns findings to the UI.
+ * Flow:
+ *   1. Loader renders the dashboard with shop context.
+ *   2. "Run AI SEO agent" triggers the root action → runAudit() →
+ *      renders findings + signals.
+ *   3. Each finding with an `edit` proposal renders a "Preview fix"
+ *      button that POSTs to /app/agent/preview, displays the hydrated
+ *      PageEdit inline, then "Apply" POSTs to /app/agent/apply.
  */
 
 export const loader = async ({ request }) => {
   const { admin } = await authenticate.admin(request);
-
   const shopRes = await admin.graphql(`#graphql
     {
       shop {
@@ -32,20 +31,17 @@ export const loader = async ({ request }) => {
     }`);
   const json = await shopRes.json();
   const shop = json.data.shop;
-  const productCount = json.data.productsCount?.count ?? 0;
-
   return {
     shop,
     storefrontUrl: shop.primaryDomain?.url || `https://${shop.myshopifyDomain}`,
-    counts: { products: productCount },
+    counts: { products: json.data.productsCount?.count ?? 0 },
   };
 };
 
 export const action = async ({ request }) => {
   const { admin, session } = await authenticate.admin(request);
   const connector = shopifyConnector(admin, session.shop);
-  const result = await runAudit(connector);
-  return result;
+  return await runAudit(connector);
 };
 
 export default function Index() {
@@ -87,16 +83,17 @@ export default function Index() {
           </s-stack>
           <s-paragraph>
             The agent crawls a representative slice of your storefront,
-            extracts deterministic SEO signals (structured data, on-page,
-            AI-search), consults its memory of past runs on this store,
-            and has an LLM planner synthesize a ranked list of findings
-            with recommendations.
+            extracts deterministic SEO signals, consults its memory of
+            past runs, and has an LLM planner propose ranked fixes.
+            Clicking Preview shows the exact change; Apply writes it to
+            your shop metafields (or productUpdate for copy) and
+            verifies the live storefront picked it up.
           </s-paragraph>
         </s-stack>
       </s-section>
 
       {result?.summary && (
-        <s-section heading={`Run ${result.runId.slice(0, 8)} — ${result.summary.passing}/${result.summary.total} passing`}>
+        <s-section heading={`Run · ${result.summary.passing}/${result.summary.total} passing`}>
           <s-stack direction="inline" gap="base">
             <s-badge tone={result.summary.passing === result.summary.total ? "success" : "attention"}>
               {result.summary.passing} passing
@@ -104,18 +101,13 @@ export default function Index() {
             <s-badge tone={result.summary.failing > 0 ? "critical" : "subdued"}>
               {result.summary.failing} failing
             </s-badge>
-            {result.summary.unknown > 0 && (
-              <s-badge tone="subdued">{result.summary.unknown} not testable</s-badge>
-            )}
             {result.plannerSkipped ? (
               <s-badge tone="subdued">Planner: signals-only</s-badge>
             ) : (
               <s-badge tone="info">Planner: {result.plannerModel}</s-badge>
             )}
           </s-stack>
-          <s-paragraph>
-            {new Date(result.ranAt).toLocaleString()} · platform: {result.platform}
-          </s-paragraph>
+          <s-paragraph>{new Date(result.ranAt).toLocaleString()}</s-paragraph>
         </s-section>
       )}
 
@@ -123,25 +115,7 @@ export default function Index() {
         <s-section heading="Findings">
           <s-stack direction="block" gap="base">
             {result.findings.map((f) => (
-              <s-stack key={f.id} direction="block" gap="small">
-                <s-stack direction="inline" gap="small">
-                  <s-badge
-                    tone={
-                      f.severity === "critical" ? "critical" :
-                      f.severity === "warning" ? "attention" : "subdued"
-                    }
-                  >
-                    {f.severity}
-                  </s-badge>
-                  <s-text weight="bold">{f.title}</s-text>
-                </s-stack>
-                <s-paragraph>{f.body}</s-paragraph>
-                {f.recommendation && (
-                  <s-paragraph>
-                    <s-text weight="bold">Recommendation:</s-text> {f.recommendation}
-                  </s-paragraph>
-                )}
-              </s-stack>
+              <FindingRow key={f.id} finding={f} />
             ))}
           </s-stack>
         </s-section>
@@ -171,25 +145,153 @@ export default function Index() {
             <s-list-item>Canonical, og:image protocol, semantic H1, meta description</s-list-item>
             <s-list-item>AI-search readiness (<code>llms.txt</code>, citable copy)</s-list-item>
           </s-unordered-list>
-          <s-paragraph>
-            Click <s-text weight="bold">Run AI SEO agent</s-text> to kick off a run.
-          </s-paragraph>
         </s-section>
       )}
 
-      <s-section slot="aside" heading="Agent architecture">
+      <s-section slot="aside" heading="First-time setup">
         <s-paragraph>
-          The core is platform-agnostic. Connectors for Shopify, HTML, and
-          Wix all implement the same capability interface — the same
-          auditor, planner, and memory run across every site.
-        </s-paragraph>
-        <s-paragraph>
-          Shopify connector is the only one fully implemented in v0. HTML
-          and Wix connectors exist as typed stubs.
+          The agent writes schema into shop + product metafields under
+          the <code>glitch_grow_seo</code> namespace. The
+          <s-text weight="bold"> Glitch Grow SEO schema </s-text>
+          theme app embed block reads those metafields and injects JSON-LD
+          into your storefront head. Enable it once in your theme editor
+          (Customize → App embeds).
         </s-paragraph>
       </s-section>
     </s-page>
   );
+}
+
+function FindingRow({ finding }) {
+  const [preview, setPreview] = useState(null);
+  const [applied, setApplied] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const toneFor = (s) => (s === "critical" ? "critical" : s === "warning" ? "attention" : "subdued");
+
+  const runPreview = async () => {
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/app/agent/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          proposal: finding.edit,
+          signalId: finding.evidence?.[0],
+        }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setPreview(json.edit);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const apply = async () => {
+    if (!preview) return;
+    setBusy(true); setError(null);
+    try {
+      const res = await fetch("/app/agent/apply", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ edit: preview, signalId: finding.evidence?.[0] }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setApplied(json);
+    } catch (err) {
+      setError(err.message || String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <s-stack direction="block" gap="small">
+      <s-stack direction="inline" gap="small">
+        <s-badge tone={toneFor(finding.severity)}>{finding.severity}</s-badge>
+        <s-text weight="bold">{finding.title}</s-text>
+      </s-stack>
+      <s-paragraph>{finding.body}</s-paragraph>
+      {finding.recommendation && (
+        <s-paragraph>
+          <s-text weight="bold">Recommendation:</s-text> {finding.recommendation}
+        </s-paragraph>
+      )}
+
+      {finding.edit && !preview && !applied && (
+        <s-stack direction="inline" gap="small">
+          <s-button onClick={runPreview} {...(busy ? { loading: true } : {})}>
+            Preview fix
+          </s-button>
+        </s-stack>
+      )}
+
+      {preview && !applied && (
+        <s-stack direction="block" gap="small">
+          <s-text weight="bold">Preview ({preview.kind})</s-text>
+          <PreviewBody edit={preview} />
+          <s-stack direction="inline" gap="small">
+            <s-button onClick={apply} {...(busy ? { loading: true } : {})}>
+              Apply
+            </s-button>
+            <s-button onClick={() => setPreview(null)} variant="secondary">
+              Cancel
+            </s-button>
+          </s-stack>
+        </s-stack>
+      )}
+
+      {applied && (
+        <s-stack direction="inline" gap="small">
+          <s-badge tone={applied.verify?.ok ? "success" : "attention"}>
+            {applied.verify?.ok ? "Applied + verified" : "Applied"}
+          </s-badge>
+          {applied.verify && <s-text>{applied.verify.detail}</s-text>}
+        </s-stack>
+      )}
+
+      {error && <s-banner tone="critical">{error}</s-banner>}
+    </s-stack>
+  );
+}
+
+function PreviewBody({ edit }) {
+  if (edit.kind === "jsonld") {
+    return (
+      <pre style={{ background: "#f6f6f6", padding: 12, fontSize: 12, overflow: "auto", maxHeight: 400 }}>
+        {JSON.stringify(edit.schema, null, 2)}
+      </pre>
+    );
+  }
+  if (edit.kind === "meta") {
+    return (
+      <s-stack direction="block" gap="small">
+        {edit.title && <s-text><strong>Title:</strong> {edit.title}</s-text>}
+        {edit.description && <s-text><strong>Description:</strong> {edit.description}</s-text>}
+      </s-stack>
+    );
+  }
+  if (edit.kind === "llmstxt") {
+    return (
+      <pre style={{ background: "#f6f6f6", padding: 12, fontSize: 12, whiteSpace: "pre-wrap", maxHeight: 400, overflow: "auto" }}>
+        {edit.content}
+      </pre>
+    );
+  }
+  if (edit.kind === "copy") {
+    return (
+      <div
+        style={{ background: "#f6f6f6", padding: 12, fontSize: 14, maxHeight: 400, overflow: "auto" }}
+        dangerouslySetInnerHTML={{ __html: edit.descriptionHtml }}
+      />
+    );
+  }
+  return null;
 }
 
 export const headers = (headersArgs) => {

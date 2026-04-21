@@ -1,0 +1,70 @@
+{%- comment -%}
+  Glitch Grow AI SEO Agent — App Embed block.
+
+  Reads JSON-LD + meta metafields written by the agent into the
+  `glitch_grow_seo` namespace and injects them into the storefront head.
+
+  Shop-scoped metafields (Organization, WebSite, FAQ, llms.txt, meta)
+  render on every page. Product-scoped metafields (Product, Breadcrumb)
+  render only on product templates.
+
+  Merchants enable this block once from the theme editor — the agent
+  then fully controls the injected schema by updating metafields.
+{%- endcomment -%}
+
+{%- liquid
+  assign ns = 'glitch_grow_seo'
+  assign org = shop.metafields[ns].jsonld_organization.value
+  assign website = shop.metafields[ns].jsonld_website.value
+  assign faq = shop.metafields[ns].jsonld_faq.value
+  assign meta_title_shop = shop.metafields[ns].meta_title | default: ''
+  assign meta_desc_shop = shop.metafields[ns].meta_description | default: ''
+-%}
+
+{%- if org != blank -%}
+  <script type="application/ld+json">{{ org | json }}</script>
+{%- endif -%}
+
+{%- if website != blank -%}
+  <script type="application/ld+json">{{ website | json }}</script>
+{%- endif -%}
+
+{%- if faq != blank -%}
+  <script type="application/ld+json">{{ faq | json }}</script>
+{%- endif -%}
+
+{%- if template.name == 'product' and product != blank -%}
+  {%- assign product_ld = product.metafields[ns].jsonld_product.value -%}
+  {%- assign breadcrumb_ld = product.metafields[ns].jsonld_breadcrumb.value -%}
+  {%- if product_ld != blank -%}
+    <script type="application/ld+json">{{ product_ld | json }}</script>
+  {%- endif -%}
+  {%- if breadcrumb_ld != blank -%}
+    <script type="application/ld+json">{{ breadcrumb_ld | json }}</script>
+  {%- endif -%}
+
+  {%- assign meta_desc_product = product.metafields[ns].meta_description | default: '' -%}
+  {%- if meta_desc_product != blank -%}
+    <meta name="description" content="{{ meta_desc_product | escape }}" data-source="glitch-grow-seo">
+  {%- endif -%}
+{%- else -%}
+  {%- if meta_desc_shop != blank -%}
+    <meta name="description" content="{{ meta_desc_shop | escape }}" data-source="glitch-grow-seo">
+  {%- endif -%}
+{%- endif -%}
+
+{%- comment -%}
+  Reference /llms.txt so crawlers and AI answer engines can discover it.
+  The actual content is served by the app via a URL redirect + app proxy.
+{%- endcomment -%}
+{%- if shop.metafields[ns].llmstxt != blank and template.name == 'index' -%}
+  <link rel="alternate" type="text/plain" href="/llms.txt" title="llms.txt">
+{%- endif -%}
+
+{% schema %}
+{
+  "name": "Glitch Grow SEO schema",
+  "target": "head",
+  "settings": []
+}
+{% endschema %}

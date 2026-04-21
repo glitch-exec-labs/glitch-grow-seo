@@ -1,21 +1,26 @@
 /**
- * Agent run orchestrator. One call runs a full turn:
+ * Agent orchestration. Three entry points:
  *
- *   1. connector.crawlSample()           → page samples
- *   2. extractSignals(samples)           → deterministic signals
- *   3. memory.recall(siteId, query)      → prior_context blob
- *   4. llm.plan(signals, priorContext)   → LLM-synthesized findings
- *   5. memory.logRun(...)                → persist for next run
- *   6. return AgentRunResult
+ *   runAudit(connector)                   — the full read-only audit loop
+ *   previewEdit(connector, proposal, sid) — hydrate proposal into a PageEdit
+ *                                           (preview only, no write)
+ *   applyEdit(connector, edit, signalId)  — write + verify (throws on failure)
  *
- * Every stage is fail-open: the agent must always return a usable
- * result, even if the LLM is disabled or memory is unavailable.
+ * Every stage is fail-open on reads and strict on writes: a merchant
+ * clicking Apply should get a clear error if the write failed.
  */
 import prisma from "../db.server";
 import { plan } from "./llm";
 import { logRun, recall } from "./memory";
 import { extractSignals, summarize } from "./signals";
-import type { AgentRunResult, Connector } from "./types";
+import { generateEdit } from "./generators";
+import type {
+  AgentRunResult,
+  Connector,
+  EditProposal,
+  PageEdit,
+  VerifyResult,
+} from "./types";
 
 export async function runAudit(connector: Connector): Promise<AgentRunResult> {
   const ranAt = new Date();
@@ -23,10 +28,7 @@ export async function runAudit(connector: Connector): Promise<AgentRunResult> {
   const signals = extractSignals(samples);
   const summary = summarize(signals);
 
-  const query = signals
-    .filter((s) => s.status === false)
-    .map((s) => s.id)
-    .join(" ");
+  const query = signals.filter((s) => s.status === false).map((s) => s.id).join(" ");
   const priorContext = await recall({
     siteId: connector.siteId,
     query: query || "seo audit",
@@ -39,7 +41,6 @@ export async function runAudit(connector: Connector): Promise<AgentRunResult> {
     priorContext,
   });
 
-  // Persist AgentRun row for history / UI.
   let runId = "";
   try {
     const row = await prisma.agentRun.create({
@@ -60,7 +61,6 @@ export async function runAudit(connector: Connector): Promise<AgentRunResult> {
     runId = `mem-${ranAt.getTime()}`;
   }
 
-  // Fire-and-forget memory log.
   void logRun({
     siteId: connector.siteId,
     platform: connector.platform,
@@ -80,4 +80,86 @@ export async function runAudit(connector: Connector): Promise<AgentRunResult> {
     plannerModel: planned.model,
     plannerSkipped: planned.skipped,
   };
+}
+
+export async function previewEdit(
+  connector: Connector,
+  proposal: EditProposal,
+  signalId?: string,
+): Promise<PageEdit> {
+  return generateEdit(connector, proposal, { signalId });
+}
+
+export async function applyEdit(
+  connector: Connector,
+  edit: PageEdit,
+  signalId?: string,
+): Promise<{ applied: true; verify: VerifyResult | null }> {
+  await connector.applyEdit(edit);
+  const verify = await tryVerify(connector, edit, signalId);
+  return { applied: true, verify };
+}
+
+async function tryVerify(
+  connector: Connector,
+  edit: PageEdit,
+  signalId?: string,
+): Promise<VerifyResult | null> {
+  // Map edit kind to a lightweight HTML expectation so verify() is
+  // meaningful without re-running the full audit.
+  const expect = buildExpectation(edit, signalId);
+  const url = await bestVerifyUrl(connector, edit);
+  if (!url || !expect) return null;
+  try {
+    return await connector.verify(url, expect);
+  } catch {
+    return null;
+  }
+}
+
+function buildExpectation(
+  edit: PageEdit,
+  signalId?: string,
+): ((html: string) => boolean) | null {
+  if (edit.kind === "jsonld") {
+    const t = (edit.schema["@type"] as string) ?? "";
+    if (!t) return null;
+    const needle = new RegExp(`"@type"\\s*:\\s*"${escapeRegex(t)}"`);
+    return (html) => needle.test(html);
+  }
+  if (edit.kind === "meta") {
+    if (edit.description) {
+      return (html) => html.includes(edit.description!.slice(0, 40));
+    }
+    return null;
+  }
+  if (edit.kind === "llmstxt") {
+    // verified via direct llms.txt fetch in the UI, not here
+    return null;
+  }
+  if (edit.kind === "copy") {
+    const snippet = edit.descriptionHtml.replace(/<[^>]+>/g, " ").slice(0, 60);
+    return (html) => html.includes(snippet);
+  }
+  // Exhaustive fallback — unused.
+  void signalId;
+  return null;
+}
+
+async function bestVerifyUrl(
+  connector: Connector,
+  edit: PageEdit,
+): Promise<string | null> {
+  if (edit.kind === "copy" || (edit.kind === "jsonld" && edit.scope === "product") ||
+      (edit.kind === "meta" && edit.scope === "product")) {
+    if (!edit.productHandle) return null;
+    const ctx = await connector.fetchContext("product", edit.productHandle);
+    return typeof ctx.url === "string" ? (ctx.url as string) : null;
+  }
+  const ctx = await connector.fetchContext("shop");
+  return typeof ctx.url === "string" ? (ctx.url as string) : null;
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

@@ -1,20 +1,19 @@
 /**
  * HTML connector — stub for plain-HTML / custom-site targets.
  *
- * The contract is the same as every other connector: given a base URL,
- * surface a representative page sample. v0 implements crawlSample only;
- * writes will come in a later session and will likely land via one of:
- *
- *   - direct filesystem patches (git-backed sites)
- *   - SFTP uploads (shared hosting)
- *   - a PR-generating mode for review-gated sites
- *
- * Today crawlSample just fetches the base URL. It is exported so the
- * connector interface is proven across more than one platform.
+ * crawlSample() fetches the base URL so the core auditor can exercise
+ * the full contract across more than one platform. applyEdit / verify /
+ * fetchContext will land when we decide on the write strategy (file
+ * patches over git, SFTP upload, or PR-gated flow).
  */
-import type { Connector, PageEdit, PageSample, VerifyResult } from "../types";
+import type {
+  Connector,
+  PageEdit,
+  PageSample,
+  VerifyResult,
+} from "../types";
 
-const USER_AGENT = "GlitchSEO-Agent/0.1";
+const USER_AGENT = "GlitchSEO-Agent/0.2";
 
 export function htmlConnector(baseUrl: string): Connector {
   const normalized = baseUrl.replace(/\/+$/, "");
@@ -35,12 +34,16 @@ export function htmlConnector(baseUrl: string): Connector {
       }
     },
 
+    async fetchContext(_scope, _handle): Promise<Record<string, unknown>> {
+      return { url: normalized, name: normalized };
+    },
+
     async applyEdit(_edit: PageEdit): Promise<void> {
-      throw new Error("htmlConnector.applyEdit: not implemented in v0");
+      throw new Error("htmlConnector.applyEdit: not implemented");
     },
 
     async verify(_url, _expect): Promise<VerifyResult> {
-      throw new Error("htmlConnector.verify: not implemented in v0");
+      throw new Error("htmlConnector.verify: not implemented");
     },
   };
 }

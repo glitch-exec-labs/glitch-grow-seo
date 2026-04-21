@@ -1,30 +1,47 @@
 /**
- * LLM planner — turns deterministic signals + memory into a ranked list of
- * findings with recommendations. Fail-open: if ANTHROPIC_API_KEY is unset
- * or the call errors, we skip the planner and return the raw signals as
- * info-level findings.
+ * LLM planner — synthesizes ranked, executable findings from
+ * deterministic signals plus prior memory.
+ *
+ * Powered by OpenAI `gpt-4o`. Fail-open: if OPENAI_API_KEY is unset or
+ * the call errors, the agent returns deterministic fallback findings
+ * and logs the reason; a run never breaks because the LLM is unhappy.
  */
-import Anthropic from "@anthropic-ai/sdk";
-import type { Finding, Signal } from "./types";
+import OpenAI from "openai";
+import type { EditProposal, Finding, Signal } from "./types";
 
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5";
+const MODEL = process.env.OPENAI_MODEL || "gpt-4o";
 const MAX_TOKENS = 2048;
 
-const SYSTEM_PROMPT = `You are the planner node of an autonomous SEO agent that works on Shopify, plain HTML, and Wix websites.
+const SYSTEM_PROMPT = `You are the planner node of an autonomous SEO agent that operates across Shopify, plain HTML, and Wix websites.
 
-Your job: given (a) a list of deterministic SEO signals extracted from the site and (b) prior context from this site's memory, produce a short, ranked list of actionable findings.
+Input: (a) deterministic SEO signals extracted from the live site, (b) prior context from this site's memory, (c) the platform + siteId.
+
+Output (STRICT JSON, no prose, no markdown fences):
+{
+  "findings": [
+    {
+      "id": "kebab-case-stable-id",
+      "severity": "critical" | "warning" | "info",
+      "title": "short human title",
+      "body": "2-3 sentence impact explanation in plain English",
+      "evidence": ["signal.id", ...],
+      "recommendation": "one concrete next action the executor can take",
+      "edit": {
+        "kind": "jsonld" | "meta" | "llmstxt" | "copy",
+        "scope": "shop" | "product" | "site",
+        "productHandle": "optional, required if scope=product",
+        "rationale": "why this edit fixes the finding"
+      } | null
+    }
+  ]
+}
 
 Rules:
-- Output strict JSON. No prose, no markdown, no code fences.
-- Shape: {"findings":[{"id","severity","title","body","evidence":[...],"recommendation"}]}
-- severity ∈ {"critical","warning","info"}.
-- id is kebab-case, stable across runs for the same underlying issue.
-- evidence[] references signal ids verbatim.
-- body explains impact in plain English (2–3 sentences max).
-- recommendation is one concrete next action the agent could execute.
-- Prefer critical findings that unlock rich results (Product, FAQPage, Breadcrumb) or AI-answer citations.
-- If prior memory shows a finding was already resolved, do not resurface it unless signals regressed.
-- Cap total findings at 8. Merge duplicates.`;
+- Cap findings at 8. Merge duplicates.
+- Critical = blocks rich results or AI-answer citations (Product, FAQPage, Breadcrumb schema).
+- If prior memory shows a finding was already resolved, do NOT resurface unless signals regressed.
+- edit.kind must be non-null when the executor can act deterministically; leave null for findings that need merchant judgement.
+- id must be stable across runs for the same underlying issue.`;
 
 export type PlannerInput = {
   siteId: string;
@@ -41,10 +58,10 @@ export type PlannerOutput = {
 };
 
 export async function plan(input: PlannerInput): Promise<PlannerOutput> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  if (!process.env.OPENAI_API_KEY) {
     return { findings: fallbackFindings(input.signals), skipped: true };
   }
-  const client = new Anthropic();
+  const client = new OpenAI();
 
   const userPayload = {
     siteId: input.siteId,
@@ -55,16 +72,19 @@ export async function plan(input: PlannerInput): Promise<PlannerOutput> {
       group: s.group,
       status: s.status,
       url: s.source.url,
+      role: s.source.role,
     })),
     prior_context: input.priorContext || "",
   };
 
   try {
-    const res = await client.messages.create({
+    const res = await client.chat.completions.create({
       model: MODEL,
       max_tokens: MAX_TOKENS,
-      system: SYSTEM_PROMPT,
+      temperature: 0.2,
+      response_format: { type: "json_object" },
       messages: [
+        { role: "system", content: SYSTEM_PROMPT },
         {
           role: "user",
           content: `Site signals and prior memory below. Return findings JSON.\n\n${JSON.stringify(
@@ -75,12 +95,7 @@ export async function plan(input: PlannerInput): Promise<PlannerOutput> {
         },
       ],
     });
-    const text =
-      res.content
-        .filter((b): b is Anthropic.TextBlock => b.type === "text")
-        .map((b) => b.text)
-        .join("") || "";
-
+    const text = res.choices[0]?.message?.content ?? "";
     const parsed = safeParseFindings(text);
     return { findings: parsed, model: MODEL, skipped: false };
   } catch (err) {
@@ -93,7 +108,6 @@ export async function plan(input: PlannerInput): Promise<PlannerOutput> {
 }
 
 function safeParseFindings(raw: string): Finding[] {
-  // Tolerate accidental fences or leading prose.
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) return [];
   try {
@@ -112,10 +126,27 @@ function safeParseFindings(raw: string): Finding[] {
           : [],
         recommendation:
           typeof f.recommendation === "string" ? f.recommendation : undefined,
+        edit: safeParseEdit(f.edit),
       }));
   } catch {
     return [];
   }
+}
+
+function safeParseEdit(raw: unknown): EditProposal | null {
+  if (!raw || typeof raw !== "object") return null;
+  const e = raw as Record<string, unknown>;
+  const kind = e.kind;
+  if (kind !== "jsonld" && kind !== "meta" && kind !== "llmstxt" && kind !== "copy")
+    return null;
+  const scope = (e.scope as EditProposal["scope"]) ?? "shop";
+  return {
+    kind: kind as EditProposal["kind"],
+    scope,
+    productHandle:
+      typeof e.productHandle === "string" ? e.productHandle : undefined,
+    rationale: typeof e.rationale === "string" ? e.rationale : "",
+  };
 }
 
 /** Deterministic findings used when the LLM planner is unavailable. */
@@ -127,5 +158,25 @@ function fallbackFindings(signals: Signal[]): Finding[] {
     title: `Missing: ${s.label}`,
     body: `Signal ${s.id} is failing on ${s.source.url}.`,
     evidence: [s.id],
+    edit: proposeFallbackEdit(s),
   }));
+}
+
+function proposeFallbackEdit(s: Signal): EditProposal | null {
+  // Map a failing signal to the edit the executor would apply.
+  if (s.id.endsWith("home.jsonld.organization"))
+    return { kind: "jsonld", scope: "shop", rationale: "Add Organization schema" };
+  if (s.id.endsWith("home.jsonld.website"))
+    return { kind: "jsonld", scope: "shop", rationale: "Add WebSite + SearchAction schema" };
+  if (s.id.endsWith("home.jsonld.faq"))
+    return { kind: "jsonld", scope: "shop", rationale: "Add FAQPage schema" };
+  if (s.id.endsWith("product.jsonld.product"))
+    return { kind: "jsonld", scope: "product", rationale: "Add Product schema" };
+  if (s.id.endsWith("product.jsonld.breadcrumb"))
+    return { kind: "jsonld", scope: "product", rationale: "Add BreadcrumbList schema" };
+  if (s.id.endsWith("site.llmstxt.linked"))
+    return { kind: "llmstxt", scope: "site", rationale: "Publish llms.txt for AI-search citability" };
+  if (s.id.endsWith("page.meta.description"))
+    return { kind: "meta", scope: "shop", rationale: "Write meta description" };
+  return null;
 }

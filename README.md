@@ -22,10 +22,10 @@
 An autonomous SEO agent that plugs into **any website** — Shopify today, plain HTML and Wix next — and runs the same audit → plan → execute → verify loop across every platform. One agent brain, pluggable site connectors.
 
 - **Audit.** Deterministic signal extraction across structured data, breadcrumbs, canonical, `og:image`, semantic H1, meta description, and AI-search readiness (`llms.txt`).
-- **Plan.** An LLM planner (Claude) synthesizes the signals plus prior-run memory into a ranked, short list of findings with recommendations.
+- **Plan.** An LLM planner (OpenAI `gpt-4o`) synthesizes the signals plus prior-run memory into a ranked list of findings, each carrying an executable edit proposal.
 - **Memory.** Every run is persisted to a pgvector-backed memory table; hybrid retrieval (vector + recency decay) feeds the planner prior context so it doesn't resurface already-fixed issues.
-- **Execute.** (Coming next.) Connectors write schema/meta/copy back to the source — Shopify theme files and metafields, Wix via Velo, plain HTML via diff/PR.
-- **Verify.** (Coming next.) Re-crawl after a write to confirm the change propagated.
+- **Execute.** Preview-first writes: the agent generates the exact change (JSON-LD schema, meta tags, `llms.txt`, rewritten product copy), shows it to the merchant, and applies it via shop/product metafields or `productUpdate` only on confirm.
+- **Verify.** Re-fetches the live page after the write and confirms the expected signal is now present.
 
 ## Architecture
 
@@ -51,25 +51,50 @@ Every connector implements the same [`Connector`](./app/agent/types.ts) interfac
 
 ```
 app/agent/
-  types.ts              Connector interface + Signal / Finding / AgentRunResult types
-  signals.ts            Deterministic HTML signal extractor (regex-only, fast)
-  llm.ts                Anthropic planner — fail-open if no API key
+  types.ts              Connector interface + Signal / Finding / PageEdit union
+  signals.ts            Deterministic HTML signal extractor (regex-only)
+  llm.ts                OpenAI gpt-4o planner — fail-open if no API key
   embeddings.ts         OpenAI embedding shim for memory retrieval
   memory.ts             pgvector + recency-decay hybrid retrieval
-  runner.ts             One full agent turn: crawl → signals → recall → plan → persist
+  runner.ts             runAudit / previewEdit / applyEdit entry points
+  generators/           Hydrate an EditProposal → concrete PageEdit
+    organization.ts       Deterministic Organization JSON-LD
+    website.ts            Deterministic WebSite + SearchAction JSON-LD
+    product.ts            Deterministic Product JSON-LD
+    breadcrumb.ts         Deterministic BreadcrumbList JSON-LD
+    faq.ts                LLM-generated FAQPage schema
+    llmstxt.ts            LLM-generated /llms.txt markdown
+    copy.ts               LLM rewrites product description HTML
+    meta.ts               LLM-generated meta title + description
   connectors/
-    shopify.ts          Uses Admin GraphQL + storefront fetch
+    shopify.ts          Admin GraphQL + storefront fetch + metafield writes
     html.ts             Stub — base URL fetch only
     wix.ts              Stub
   index.ts              Public surface
 ```
 
+### How writes land on Shopify
+
+The agent writes into the `glitch_grow_seo` metafield namespace:
+
+| Metafield | Owner | Content |
+|---|---|---|
+| `jsonld_organization`, `jsonld_website`, `jsonld_faq` | shop | Full JSON-LD objects |
+| `jsonld_product`, `jsonld_breadcrumb` | product | Full JSON-LD objects |
+| `meta_title`, `meta_description` | shop / product | Meta tag overrides |
+| `llmstxt` | shop | Markdown manifest for AI answer engines |
+
+A **Theme App Embed block** (`extensions/glitch-grow-seo-schema/`) reads these metafields and injects `<script type="application/ld+json">` blocks into the storefront `<head>`. Merchants enable the block once from Theme Editor → Customize → App embeds; after that the agent fully controls the rendered schema by updating metafields.
+
+`/llms.txt` at the storefront is served by a 301 redirect (auto-created by the agent) → `/apps/glitch-grow-seo/llms.txt` → app route that reads the `llmstxt` metafield.
+
+Product copy rewrites go through the standard `productUpdate` Admin mutation.
+
 ### Environment
 
-Both AI providers are optional — the agent still runs without them, falling back to deterministic findings and recency-only memory:
-
-- `ANTHROPIC_API_KEY` — planner. Without it, findings are raw failing signals.
-- `OPENAI_API_KEY` — embeddings. Without it, memory retrieval is recency-only.
+- `OPENAI_API_KEY` — powers the planner (`gpt-4o`) and memory embeddings (`text-embedding-3-small`). Without it, the agent still runs and emits deterministic findings, but skips LLM planning and vector similarity.
+- `OPENAI_MODEL` — default `gpt-4o`.
+- `EMBEDDING_MODEL` — default `text-embedding-3-small`.
 
 ## Stack
 
