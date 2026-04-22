@@ -158,10 +158,21 @@ def default_workspace_path(container_path: str) -> str:
 
 
 def create_tag(workspace_path: str, tag_body: dict) -> dict:
+    _throttle()
     return (
         client()
         .accounts().containers().workspaces().tags()
         .create(parent=workspace_path, body=tag_body).execute()
+    )
+
+
+def update_tag(tag_path: str, tag_body: dict) -> dict:
+    """PUT — full tag object required (GTM API v2 has no PATCH for tags)."""
+    _throttle()
+    return (
+        client()
+        .accounts().containers().workspaces().tags()
+        .update(path=tag_path, body=tag_body).execute()
     )
 
 

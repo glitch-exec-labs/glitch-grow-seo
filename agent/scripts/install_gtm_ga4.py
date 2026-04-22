@@ -33,6 +33,7 @@ from glitch_seo_agent.clients.tag_manager import (
     find_container_by_public_id,
     list_tags,
     list_triggers,
+    update_tag,
     _throttle,
 )
 
@@ -93,7 +94,29 @@ def ensure_ga4_tag(workspace_path: str, ga4_id: str, trigger_id: str) -> dict[st
     return {"action": "created", "tag": created}
 
 
-def run_one(slug: str, gtm_id: str, ga4_id: str, dry_run: bool) -> dict[str, Any]:
+def pause_ga4_tag(workspace_path: str) -> dict[str, Any]:
+    """
+    Find the googtag and set paused=true. Needed on Shopify stores
+    where Shopify's native Google & YouTube channel already fires GA4
+    events — keeping our GTM Google Tag live would double-count every
+    page view / view_item / purchase in the same GA4 property.
+
+    Idempotent — already-paused tags report 'already_paused'.
+    """
+    for t in list_tags(workspace_path):
+        if t.get("type") != "googtag":
+            continue
+        if t.get("paused"):
+            return {"action": "already_paused", "tag": t}
+        paused_body = {**t, "paused": True}
+        updated = update_tag(t["path"], paused_body)
+        return {"action": "paused", "tag": updated}
+    return {"action": "no_googtag_found"}
+
+
+def run_one(
+    slug: str, gtm_id: str, ga4_id: str, *, dry_run: bool, pause_only: bool,
+) -> dict[str, Any]:
     out: dict[str, Any] = {"slug": slug, "gtm": gtm_id, "ga4": ga4_id}
     hit = find_container_by_public_id(gtm_id)
     if not hit:
@@ -107,11 +130,14 @@ def run_one(slug: str, gtm_id: str, ga4_id: str, dry_run: bool) -> dict[str, Any
         out["status"] = "dry_run"
         return out
 
-    trigger_id = ensure_trigger(ws)
-    out["trigger_id"] = trigger_id
-
-    tag_action = ensure_ga4_tag(ws, ga4_id, trigger_id)
-    out["tag_action"] = tag_action["action"]
+    if pause_only:
+        res = pause_ga4_tag(ws)
+        out["tag_action"] = res["action"]
+    else:
+        trigger_id = ensure_trigger(ws)
+        out["trigger_id"] = trigger_id
+        tag_action = ensure_ga4_tag(ws, ga4_id, trigger_id)
+        out["tag_action"] = tag_action["action"]
 
     # Publish a new container version, always — if nothing changed,
     # GTM returns no-op gracefully; keeps the live version pointer fresh.
@@ -131,6 +157,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gtm")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument(
+        "--pause",
+        action="store_true",
+        help="Pause the existing GA4 Configuration tag (use when Shopify's "
+             "native Google channel already fires GA4 to avoid double-counting).",
+    )
     args = ap.parse_args()
 
     targets = [
@@ -149,7 +181,7 @@ def main() -> int:
 
     for slug, gtm_id, ga4_id in targets:
         try:
-            r = run_one(slug, gtm_id, ga4_id, args.dry_run)
+            r = run_one(slug, gtm_id, ga4_id, dry_run=args.dry_run, pause_only=args.pause)
         except Exception as e:
             r = {"slug": slug, "gtm": gtm_id, "ga4": ga4_id, "status": "exception", "error": str(e)[:300]}
         emoji = {"ok": "✓", "dry_run": "·", "already_correct": "•"}.get(r.get("status", ""), "⚠")
