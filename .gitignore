@@ -13,6 +13,15 @@
 credentials/
 !credentials/.gitkeep
 
+# ─── Python agent ─────────────────────────────────────
+agent/.venv/
+agent/.reports/
+agent/**/__pycache__/
+agent/*.egg-info/
+agent/.pytest_cache/
+agent/.mypy_cache/
+agent/.ruff_cache/
+
 # ─── Dependencies & build artifacts ────────────────────
 node_modules/
 .pnpm-store/

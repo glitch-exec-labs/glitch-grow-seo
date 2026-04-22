@@ -7,7 +7,10 @@
     "repo": "glitch-exec-labs/glitch-grow-site",
     "notes": "Marketing site — test read-only first.",
     "buildDir": "/home/support/glitch-grow-site",
-    "buildCommand": "pnpm build && pm2 restart grow-site"
+    "buildCommand": "pnpm build && pm2 restart grow-site",
+    "gscProperty": "sc-domain:grow.glitchexecutor.com",
+    "psiTargets": [],
+    "nlpTargets": []
   },
   {
     "id": "edge-site",

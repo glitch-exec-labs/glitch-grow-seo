@@ -153,6 +153,7 @@ export default function Index() {
           <s-link href="/app/client-memory">Client memory (brand profile) →</s-link>
           <s-link href="/app/client-memory/proposals">Proposed facts →</s-link>
           <s-link href="/app/runs">Run history →</s-link>
+          <s-link href="/app/agent/reports">SEO reports (Python pulls) →</s-link>
         </s-stack>
       </s-section>
 

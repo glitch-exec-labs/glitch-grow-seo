@@ -1,0 +1,19 @@
+# Glitch Grow AI SEO Agent — daily signal-pull cron.
+#
+# NOT installed by any script. Copy (or symlink) into /etc/cron.d/
+# when you are ready to schedule:
+#
+#   sudo cp ops/cron.d/glitch-seo-daily /etc/cron.d/
+#
+# Runs at 06:07 UTC (slightly off the hour to avoid collision with
+# other cron consumers). Log path is the operator's responsibility —
+# `mkdir -p /var/log/glitch-seo && chown support:support /var/log/glitch-seo`
+# before the first run.
+#
+# The script itself is idempotent: one SeoReport row per (site, day)
+# is normal. Running it twice on the same day just inserts a second
+# row — the UI shows the latest.
+
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+7 6 * * * support /home/support/glitch-grow-public/agent/scripts/run_daily.sh >> /var/log/glitch-seo/daily.log 2>&1
