@@ -10,9 +10,9 @@ Add a key later if we ever hit quota.
 """
 from __future__ import annotations
 
-import os
-
 import httpx
+
+from ..config import settings
 
 _BASE = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 _TIMEOUT = httpx.Timeout(90.0, connect=10.0)
@@ -30,8 +30,8 @@ async def audit(
     field data.
 
     Unkeyed calls are fine for a daily 4-site cron but burst during
-    probing hits 429. Set PAGESPEED_API_KEY to get the higher quota
-    (25,000 queries per day).
+    probing hits 429. Set PAGESPEED_API_KEY in .env (picked up by
+    pydantic-settings) to get the higher quota (25,000 queries per day).
     """
     params: list[tuple[str, str]] = [
         ("url", url),
@@ -40,7 +40,7 @@ async def audit(
     for cat in categories:
         params.append(("category", cat))
 
-    api_key = os.environ.get("PAGESPEED_API_KEY")
+    api_key = settings().pagespeed_api_key
     if api_key:
         params.append(("key", api_key))
 

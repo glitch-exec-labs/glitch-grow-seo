@@ -32,6 +32,11 @@ class Settings(BaseSettings):
         alias="GOOGLE_SA_PATH",
     )
 
+    # --- PageSpeed Insights --------------------------------------------
+    # Optional — unkeyed quota is fine for daily cron across a small
+    # fleet but 429s under burst. Passed to `?key=…` query param when set.
+    pagespeed_api_key: str | None = Field(default=None, alias="PAGESPEED_API_KEY")
+
     # --- Fleet (shared with Node app) -----------------------------------
     fleet_config_path: Path = Field(
         default=_REPO_ROOT / "fleet.json",
