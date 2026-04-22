@@ -15,6 +15,7 @@ import { logRun, recall } from "./memory";
 import { proposeFacts } from "./proposer";
 import { extractSignals, summarize } from "./signals";
 import { generateEdit } from "./generators";
+import { getLatestSiteTraffic, renderSiteTrafficForPrompt } from "./seoReport";
 import type {
   AgentRunResult,
   Connector,
@@ -39,11 +40,17 @@ export async function runAudit(connector: Connector): Promise<AgentRunResult> {
     query: query || "seo audit",
   });
 
+  // Read the latest Python-side SeoReport (GSC / PSI / NLP aggregates)
+  // so the planner weights findings by real search-traffic data.
+  const traffic = await getLatestSiteTraffic(connector.siteId);
+  const siteTraffic = renderSiteTrafficForPrompt(traffic);
+
   const planned = await plan({
     siteId: connector.siteId,
     platform: connector.platform,
     signals,
     priorContext,
+    siteTraffic,
   });
 
   let runId = "";

@@ -22,7 +22,8 @@ async def load() -> Iterable[SiteRecord]:
               s.shop                 AS site_id,
               cm."gscProperty"       AS gsc_property,
               cm."psiTargets"        AS psi_targets,
-              cm."nlpTargets"        AS nlp_targets
+              cm."nlpTargets"        AS nlp_targets,
+              cm."brandQueries"      AS brand_queries
             FROM (SELECT DISTINCT shop FROM "Session") s
             LEFT JOIN "ClientMemory" cm ON cm."siteId" = s.shop
             ORDER BY s.shop ASC
@@ -39,6 +40,7 @@ async def load() -> Iterable[SiteRecord]:
                 gsc_property=r["gsc_property"],
                 psi_targets=list(r["psi_targets"] or []),
                 nlp_targets=list(r["nlp_targets"] or []),
+                brand_queries=list(r["brand_queries"] or []),
                 enabled=True,
                 notes=None,
             )

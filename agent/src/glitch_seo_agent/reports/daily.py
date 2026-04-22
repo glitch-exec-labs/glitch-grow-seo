@@ -18,6 +18,7 @@ from ..db import insert_seo_report
 from ..pulls import entities as entities_pull
 from ..pulls import gsc as gsc_pull
 from ..pulls import perf as perf_pull
+from ..pulls import serp as serp_pull
 from ..sources import SiteRecord
 
 log = structlog.get_logger(__name__)
@@ -32,6 +33,7 @@ async def run(site: SiteRecord) -> dict[str, Any]:
 
     perf = await perf_pull.pull(site, fallback_urls=top_page_urls)
     entities = await entities_pull.pull(site, fallback_urls=top_page_urls)
+    serp = await serp_pull.pull(site)
 
     summary = _summarize(gsc=gsc, perf=perf, entities=entities)
 
@@ -44,6 +46,7 @@ async def run(site: SiteRecord) -> dict[str, Any]:
         gsc=gsc,
         perf=perf,
         entities=entities,
+        serp=serp,
     )
 
     # Drop an on-disk JSON snapshot for drill-down / audit trail.
@@ -60,6 +63,7 @@ async def run(site: SiteRecord) -> dict[str, Any]:
                 "gsc": gsc,
                 "perf": perf,
                 "entities": entities,
+                "serp": serp,
             },
             indent=2,
         ),

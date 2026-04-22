@@ -24,6 +24,7 @@ class SiteRecord:
     gsc_property: str | None = None
     psi_targets: list[str] = field(default_factory=list)
     nlp_targets: list[str] = field(default_factory=list)
+    brand_queries: list[str] = field(default_factory=list)
     enabled: bool = True
     notes: str | None = None
 

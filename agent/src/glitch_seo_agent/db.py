@@ -66,20 +66,20 @@ async def insert_seo_report(
     perf: dict[str, Any] | None = None,
     entities: dict[str, Any] | None = None,
     indexing: dict[str, Any] | None = None,
+    serp: dict[str, Any] | None = None,
     error: str | None = None,
 ) -> str:
     """Returns the new row's id."""
     pool = await sync_pool()
     async with pool.acquire() as conn:
-        # Generate a cuid-ish id inline so we don't need Prisma here.
-        # Using asyncpg's default random is fine — IDs are opaque.
         row_id = await conn.fetchval(
             """
             INSERT INTO "SeoReport"
-              (id, "siteId", platform, period, kind, summary, gsc, perf, entities, indexing, error)
+              (id, "siteId", platform, period, kind, summary,
+               gsc, perf, entities, indexing, serp, error)
             VALUES
               ('r_' || replace(gen_random_uuid()::text, '-', ''),
-               $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10)
+               $1, $2, $3, $4, $5::jsonb, $6::jsonb, $7::jsonb, $8::jsonb, $9::jsonb, $10::jsonb, $11)
             RETURNING id
             """,
             site_id,
@@ -91,6 +91,7 @@ async def insert_seo_report(
             json.dumps(perf) if perf is not None else None,
             json.dumps(entities) if entities is not None else None,
             json.dumps(indexing) if indexing is not None else None,
+            json.dumps(serp) if serp is not None else None,
             error,
         )
     return str(row_id)

@@ -121,6 +121,9 @@ model ClientMemory {
   gscProperty     String?
   psiTargets      String[] @default([])
   nlpTargets      String[] @default([])
+  /// Brand queries for Custom Search SERP snapshotting. Empty →
+  /// auto-derived ("<brand>", "<brand> review", "<domain>").
+  brandQueries    String[] @default([])
 }
 
 /// Long-form reports from the Python signal-pull pipeline.
@@ -138,6 +141,8 @@ model SeoReport {
   perf      Json?
   entities  Json?
   indexing  Json?
+  /// Custom Search SERP snapshot per brand query.
+  serp      Json?
   error     String?
 
   @@index([siteId, createdAt(sort: Desc)])

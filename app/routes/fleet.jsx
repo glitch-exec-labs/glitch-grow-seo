@@ -48,11 +48,11 @@ export const loader = async ({ request }) => {
     rebuild: lastRebuild(site.id),
   }));
 
-  return { fleet, rows, autoRebuild: autoRebuildEnabled() };
+  return { fleet, rows, autoRebuild: autoRebuildEnabled(), token: provided };
 };
 
 export default function Fleet() {
-  const { fleet, rows, autoRebuild } = useLoaderData();
+  const { fleet, rows, autoRebuild, token } = useLoaderData();
 
   return (
     <div style={{ maxWidth: 960, margin: "40px auto", padding: "0 24px", fontFamily: "system-ui, sans-serif", color: "#1a1a1a" }}>
@@ -109,6 +109,8 @@ export default function Fleet() {
                   ) : (
                     <em style={{ color: "#999" }}>—</em>
                   )}
+                  {" "}
+                  <a href={`/fleet/${site.id}/reports?token=${token}`} style={{ fontSize: 12 }}>reports →</a>
                 </td>
                 <td style={td}>
                   {!site.buildDir ? (

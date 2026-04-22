@@ -37,6 +37,10 @@ class Settings(BaseSettings):
     # fleet but 429s under burst. Passed to `?key=…` query param when set.
     pagespeed_api_key: str | None = Field(default=None, alias="PAGESPEED_API_KEY")
 
+    # --- Custom Search (SERP snapshotting) -----------------------------
+    custom_search_api_key: str | None = Field(default=None, alias="CUSTOM_SEARCH_API_KEY")
+    custom_search_engine_id: str | None = Field(default=None, alias="CUSTOM_SEARCH_ENGINE_ID")
+
     # --- Fleet (shared with Node app) -----------------------------------
     fleet_config_path: Path = Field(
         default=_REPO_ROOT / "fleet.json",

@@ -15,7 +15,9 @@ const MAX_TOKENS = 2048;
 
 const SYSTEM_PROMPT = `You are the planner node of an autonomous SEO agent that operates across Shopify, plain HTML, and Wix websites.
 
-Input: (a) deterministic SEO signals extracted from the live site, (b) prior context from this site's memory, (c) the platform + siteId.
+Input: (a) deterministic SEO signals extracted from the live site, (b) prior context from this site's memory, (c) the platform + siteId, (d) optional <site_traffic> block from Google Search Console showing which pages actually have impressions/clicks and which queries drive them.
+
+When <site_traffic> is present, ALWAYS prioritize findings on pages with real impression counts. A failing signal on a 2000-impression page is critical; the same failing signal on a 0-impression page is info at best.
 
 Output (STRICT JSON, no prose, no markdown fences):
 {
@@ -49,6 +51,9 @@ export type PlannerInput = {
   platform: string;
   signals: Signal[];
   priorContext?: string;
+  /** <site_traffic> block from the latest SeoReport. When present,
+   *  the planner weights findings by real impression/click data. */
+  siteTraffic?: string;
 };
 
 export type PlannerOutput = {
@@ -76,6 +81,7 @@ export async function plan(input: PlannerInput): Promise<PlannerOutput> {
       role: s.source.role,
     })),
     prior_context: input.priorContext || "",
+    site_traffic: input.siteTraffic || "",
   };
 
   try {

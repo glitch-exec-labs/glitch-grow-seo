@@ -42,6 +42,7 @@ def load() -> Iterable[SiteRecord]:
                 gsc_property=entry.get("gscProperty") or _default_gsc_property(base_url),
                 psi_targets=list(entry.get("psiTargets") or []),
                 nlp_targets=list(entry.get("nlpTargets") or []),
+                brand_queries=list(entry.get("brandQueries") or []),
                 enabled=bool(entry.get("enabled", True)),
                 notes=entry.get("notes"),
             )
