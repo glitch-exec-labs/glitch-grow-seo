@@ -20,6 +20,20 @@ DEFAULT_N = 3
 MAX_CHARS_PER_PAGE = 20_000  # Natural Language bills per 1000 chars.
 USER_AGENT = "GlitchSEO-Agent/1.0"
 
+# Entity types that are SEO-useful. NLP returns lots of NUMBER / DATE /
+# PRICE / PHONE_NUMBER entities that float to the top on marketing
+# pages (metrics, pricing callouts) and crowd out the actual brand /
+# product / location signal we want.
+SEMANTIC_TYPES: frozenset[str] = frozenset({
+    "PERSON",
+    "ORGANIZATION",
+    "LOCATION",
+    "EVENT",
+    "WORK_OF_ART",
+    "CONSUMER_GOOD",
+    "OTHER",
+})
+
 
 async def pull(site: SiteRecord, *, fallback_urls: Iterable[str] = ()) -> dict[str, Any]:
     urls = _resolve_urls(site, fallback_urls)
@@ -59,11 +73,12 @@ async def pull(site: SiteRecord, *, fallback_urls: Iterable[str] = ()) -> dict[s
                 }
             )
 
+    # Rank semantic types only — filter out NUMBER/DATE/PRICE noise.
     all_names = [
         e["name"]
         for p in pages
         for e in p.get("entities") or []
-        if e.get("name")
+        if e.get("name") and e.get("type") in SEMANTIC_TYPES
     ]
     top = _top_n(all_names, n=15)
 
