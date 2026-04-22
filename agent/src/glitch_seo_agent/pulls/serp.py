@@ -1,11 +1,21 @@
 """
-SERP snapshot via Google Custom Search.
+SERP snapshot via Google Custom Search — NOT WIRED in v1.
 
-For each enrolled brand query, fetch the top-10 results. If the site
-has no explicit brand queries, derive a small default set from the
-siteId + base URL (exact brand match, brand + review, and the raw
-domain). Lets the agent track week-to-week whether the site still
-ranks on its own brand.
+Google deprecated the "Search the entire web" feature on new
+Programmable Search Engines, so Custom Search JSON can now only query
+a caller-supplied list of sites. That defeats the original goal
+(track where our brand ranks across the open web); GSC top_queries
+already gives us the same signal for our own properties.
+
+Kept as scaffolding:
+- If you decide to track a specific list of competitor domains, add
+  them to your Programmable Search Engine and wire this pull into
+  reports/daily.py again.
+- If you sign up for a paid SERP provider (SerpAPI, ValueSERP,
+  DataForSEO), swap clients/custom_search.py for the provider's SDK
+  and the rest of this module is shaped correctly.
+
+Not called by the daily report in v1.
 """
 from __future__ import annotations
 

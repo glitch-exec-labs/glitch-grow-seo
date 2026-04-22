@@ -13,7 +13,65 @@ Body text (if present) shown as indented sub-bullets.
 
 ## 2026-04-22
 
-- **06:00 UTC** — auto-sync: 2026-04-22 06:00 UTC (`0f4af77`) — 7 files
+- **07:30 UTC** — auto-sync: 2026-04-22 07:30 UTC (`9603991`) — 2 files
+        M	agent/src/glitch_seo_agent/pulls/serp.py
+        M	agent/src/glitch_seo_agent/reports/daily.py
+- **06:54 UTC** — feat(agent): A + B + C — planner reads SeoReport, /fleet drill-down, Custom Search (`fe0404d`) — 17 files
+    Three linked upgrades landing in one commit.
+    A. Node planner now reads SeoReport (GSC + PSI + NLP) and weights
+       findings by real impressions.
+       - app/agent/seoReport.ts: typed read-side accessor; returns the
+         latest report per siteId plus a <site_traffic> prompt block
+       - runner.ts: fetches traffic before calling plan(); threads it
+         through as siteTraffic
+       - llm.ts: new PlannerInput.siteTraffic; system prompt explicitly
+         instructs: a failing signal on a 2000-impression page is critical,
+         the same signal on a 0-impression page is info
+- **06:35 UTC** — fix(agent): PSI key reads from pydantic-settings (not os.environ) (`0aa4c2c`) — 2 files
+    PAGESPEED_API_KEY was never reaching the request — the env var is
+    loaded by pydantic-settings into the Settings model but never exported
+    to os.environ. The pagespeed client was reading via os.environ.get so
+    the key stayed invisible and every call burnt 429 quota.
+    Fix: declare pagespeed_api_key on Settings and read it via settings()
+    in the client. Verified: all 4 fleet sites now return real PSI scores.
+      grow-site         perf_median 0.42
+      trade-site        perf_median 0.67
+      edge-site         perf_median 0.65
+      exec-portfolio    perf_median 0.65
+- **06:22 UTC** — fix(agent): NLP entity pipeline — strip <script>/<style> + filter before slice (`b98da41`) — 1 file
+    Two bugs in the entity pull:
+    1. _strip_html kept inlined <script> and <style> contents — on Astro
+       sites this means JSON-LD blobs and hydration state polluted the NLP
+       input, producing thousands of NUMBER entities from embedded IDs,
+       prices, and coords.
+       Fix: strip <script>/<style>/<noscript> blocks (including contents)
+       and HTML comments before tag stripping.
+    2. Entity truncation happened before semantic filtering. NLP returns
+       entities ordered roughly by first-occurrence, which on long pages
+       means NUMBER/DATE tokens fill the first 50 slots and the real
+- **06:16 UTC** — fix(agent): PSI API-key support + semantic-type filter for NLP entities (`dc9aeed`) — 3 files
+    - clients/pagespeed.py: reads PAGESPEED_API_KEY from env and appends
+      it to the request; unkeyed is fine for a daily 4-site cron but hits
+      429 under burst/probe usage. Documented in .env.example.
+    - pulls/entities.py: NLP returns many NUMBER / DATE / PRICE / PHONE
+      entities on marketing pages (metrics callouts, pricing) that crowd
+      out the useful signal. Filter top_entities to SEMANTIC_TYPES only
+      (PERSON, ORGANIZATION, LOCATION, EVENT, WORK_OF_ART, CONSUMER_GOOD,
+      OTHER) so the aggregate reflects brand / product / venue names.
+      Per-page `entities[]` still contains the full set for drill-down.
+    First real report against grow-site ran cleanly end to end:
+- **06:09 UTC** — feat(agent): Python signal-pull layer — GSC + PSI + NLP, platform-agnostic (`57a9a01`) — 28 files
+    Adds a Python sibling package at agent/ that runs long-running
+    Google-API pulls for every enrolled site (Astro fleet + Shopify
+    merchants + future SiteConnection sources) and writes SeoReport rows
+    that the Node app reads read-only.
+    Core ideology preserved: one pipeline, many platforms. Python never
+    references "fleet" or "shopify" directly; it iterates SiteRecord
+    objects yielded by pluggable source loaders.
+    Python package
+    - agent/pyproject.toml: httpx, pydantic, pydantic-settings, structlog,
+      asyncpg, google-auth, google-api-python-client, google-cloud-language,
+- **06:00 UTC** — auto-sync: 2026-04-22 06:00 UTC (`ac4591c`) — 8 files
         M	.gitignore
         A	agent/README.md
         A	agent/pyproject.toml
