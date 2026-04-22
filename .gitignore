@@ -9,6 +9,10 @@
 *.pfx
 *credentials*.json
 
+# ─── Service-account key files ────────────────────────
+credentials/
+!credentials/.gitkeep
+
 # ─── Dependencies & build artifacts ────────────────────
 node_modules/
 .pnpm-store/

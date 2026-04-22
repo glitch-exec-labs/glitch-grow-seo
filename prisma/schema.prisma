@@ -114,6 +114,34 @@ model ClientMemory {
 
   // LLM-proposed facts pending review (future work)
   learnedFacts    Json?
+
+  // Google-API enrollment — used by the Python signal-pull pipeline.
+  // Nullable so existing rows stay valid; filled via the admin UI or
+  // per-platform source loaders.
+  gscProperty     String?
+  psiTargets      String[] @default([])
+  nlpTargets      String[] @default([])
+}
+
+/// Long-form reports from the Python signal-pull pipeline.
+/// Platform-agnostic — one row per site per run, joined on siteId.
+/// The JS app reads this table read-only via /app/agent/reports.
+model SeoReport {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  siteId    String
+  platform  String
+  period    String   // "28d" | "7d" | "90d"
+  kind      String   // "daily" | "ad-hoc"
+  summary   Json     // {clicks, impressions, avgCtr, avgPosition, psiMedian, topEntities}
+  gsc       Json?
+  perf      Json?
+  entities  Json?
+  indexing  Json?
+  error     String?
+
+  @@index([siteId, createdAt(sort: Desc)])
+  @@index([platform, createdAt(sort: Desc)])
 }
 
 /// Published artifact — the concrete output of an applyEdit() for

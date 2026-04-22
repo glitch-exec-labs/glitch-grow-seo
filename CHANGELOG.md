@@ -11,9 +11,30 @@ Body text (if present) shown as indented sub-bullets.
 
 ---
 
+## 2026-04-22
+
+- **06:00 UTC** — auto-sync: 2026-04-22 06:00 UTC (`0f4af77`) — 7 files
+        M	.gitignore
+        A	agent/README.md
+        A	agent/pyproject.toml
+        A	agent/src/glitch_seo_agent/__init__.py
+        A	agent/src/glitch_seo_agent/config.py
+        ... (+2 more)
+
 ## 2026-04-21
 
-- **07:00 UTC** — auto-sync: 2026-04-21 07:00 UTC (`b1b0c3b`) — 3 files
+- **07:01 UTC** — feat(fleet): same-box rebuilds — applyEdit → debounced local build (`b2fda04`) — 5 files
+    The fleet runs on the same server as the agent, so deploys are a
+    local \`pnpm build\` (plus a process-manager restart for SSR sites).
+    Wire that up:
+    - FleetSite gets optional buildDir + buildCommand in fleet.json.
+      Present → site is SSG/local-served and needs a rebuild after edits.
+      Absent → site is SSR and picks up artifacts on next request.
+    - app/agent/rebuild.ts: in-memory rebuild state per site, spawns
+      \`sh -c \$buildCommand\` in \$buildDir via child_process, captures
+      tail of stdout/stderr. 15 s debounce coalesces bursts of edits
+      into one rebuild. If an edit arrives while a rebuild is running,
+- **07:00 UTC** — auto-sync: 2026-04-21 07:00 UTC (`6d85255`) — 4 files
         M	app/agent/connectors/html.ts
         M	app/agent/fleet.ts
         A	app/agent/rebuild.ts
